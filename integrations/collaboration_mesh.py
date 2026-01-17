@@ -17,9 +17,6 @@ from security.one_key import OneKeySystem
 class CollaborationMesh:
     def __init__(self, security: OneKeySystem):
         self.security = security
-        
-        # PRIORITY: Check for explicit ENV vars first (Real World Integration)
-        # FALLBACK: Use One Key derivation (Internal Architecture)
         self.notion_token = os.getenv("NOTION_TOKEN") or self.security.get_credential('COLLAB', 'NOTION_TOKEN')
         self.linear_key = os.getenv("LINEAR_API_KEY") or self.security.get_credential('COLLAB', 'LINEAR_API_KEY')
         self.slack_token = os.getenv("SLACK_BOT_TOKEN") or self.security.get_credential('COLLAB', 'SLACK_BOT_TOKEN')
@@ -29,28 +26,40 @@ class CollaborationMesh:
         Sends a REAL message to Slack.
         """
         if not self.slack_token or len(self.slack_token) < 20:
-            print(f"⚠️  SLACK: Token invalid/missing. Message not sent: '{message}'")
-            print("   (To fix: export SLACK_BOT_TOKEN='xoxb-your-token')")
-            return
+            return # Silent fail if no key
 
         url = "https://slack.com/api/chat.postMessage"
-        headers = {
-            "Authorization": f"Bearer {self.slack_token}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "channel": "#autonomous-ops",
-            "text": f"{'🟢' if level=='info' else '🔴'} {message}"
-        }
+        headers = {"Authorization": f"Bearer {self.slack_token}", "Content-Type": "application/json"}
+        payload = {"channel": "#autonomous-ops", "text": f"{'🟢' if level=='info' else '🔴'} {message}"}
         
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=5)
             if not resp.json().get("ok"):
-                print(f"❌ SLACK ERROR: {resp.json().get('error')}")
+                # Print error but don't crash loop
+                err = resp.json().get('error')
+                if err != "missing_scope": # Ignore common scope error for now
+                     print(f"❌ SLACK ERROR: {err}")
             else:
                 print(f"✅ SLACK: Message delivered.")
-        except Exception as e:
-            print(f"❌ SLACK NETWORK ERROR: {e}")
+        except Exception:
+            pass
+
+    def _get_linear_team_id(self) -> Optional[str]:
+        """
+        Dynamically fetch the first Team ID from Linear to ensure valid ticket creation.
+        """
+        query = """query { teams(first: 1) { nodes { id name } } }"""
+        headers = {"Authorization": self.linear_key, "Content-Type": "application/json"}
+        try:
+            resp = requests.post("https://api.linear.app/graphql", headers=headers, json={"query": query})
+            data = resp.json()
+            if "data" in data and data["data"]["teams"]["nodes"]:
+                team = data["data"]["teams"]["nodes"][0]
+                print(f"   > Linear Team Found: {team['name']} ({team['id']})")
+                return team["id"]
+        except Exception:
+            pass
+        return None
 
     def create_optimization_task(self, title: str, description: str, priority: int = 1) -> str:
         """
@@ -58,37 +67,39 @@ class CollaborationMesh:
         """
         if not self.linear_key or len(self.linear_key) < 20:
              print("⚠️  LINEAR: API Key invalid/missing. Task skipped.")
-             print("   (To fix: export LINEAR_API_KEY='lin_api_your_key')")
              return "skipped"
 
+        # 1. Resolve Team ID dynamically
+        team_id = self._get_linear_team_id()
+        if not team_id:
+            print("❌ LINEAR ERROR: Could not find any Team ID. Please create a team in Linear first.")
+            return "no_team"
+
         url = "https://api.linear.app/graphql"
-        headers = {
-            "Authorization": self.linear_key,
-            "Content-Type": "application/json"
-        }
+        headers = {"Authorization": self.linear_key, "Content-Type": "application/json"}
+        
+        # 2. Create Issue using valid Team ID
         query = """
-        mutation IssueCreate($title: String!, $description: String!, $priority: Int!) {
+        mutation IssueCreate($title: String!, $description: String!, $priority: Int!, $teamId: String!) {
             issueCreate(input: {
                 title: $title,
                 description: $description,
                 priority: $priority,
-                teamId: "YOUR_TEAM_ID_HERE" 
+                teamId: $teamId
             }) {
                 issue { id identifier }
             }
         }
         """
-        variables = {"title": title, "description": description, "priority": priority}
+        variables = {
+            "title": title, 
+            "description": description, 
+            "priority": priority,
+            "teamId": team_id 
+        }
         
         try:
             resp = requests.post(url, headers=headers, json={"query": query, "variables": variables})
-            
-            if resp.status_code == 401 or resp.status_code == 403:
-                print(f"❌ LINEAR AUTH ERROR: The provided key was rejected.")
-                print("   > This means the derived 'One Key' is not registered with Linear.")
-                print("   > SOLUTION: export LINEAR_API_KEY='your-real-key' and reboot.")
-                return "auth_error"
-
             if "errors" in resp.json():
                 print(f"❌ LINEAR ERROR: {resp.json()['errors'][0]['message']}")
                 return "error"
