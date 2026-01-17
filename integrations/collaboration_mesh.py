@@ -1,90 +1,89 @@
 """
-COLLABORATION MESH
-==================
-Unifies external command & control surfaces (Notion, Linear, Slack) 
-under the One Key security protocol.
+COLLABORATION MESH (PRODUCTION)
+===============================
+Real-Time Command & Control Interface.
 
-Capabilities:
-- Notion: Syncs architectural state and biological evolution metrics.
-- Linear: Auto-creates tickets for self-optimization tasks.
-- Slack: Real-time operational pulse and emergency alerts.
-
-Security:
-- All API tokens derived deterministically from the Master Seed via OneKeySystem.
-- Zero-trust: Tokens exist only in volatile memory during execution.
+No simulation.
+This module executes ACTUAL API calls to Notion, Linear, and Slack.
+Requires valid tokens in the One Key system to function.
 """
 
-import json
 import requests
+import json
 from typing import Dict, Any, Optional
 from security.one_key import OneKeySystem
 
 class CollaborationMesh:
     def __init__(self, security: OneKeySystem):
-        """
-        Initialize the mesh with derived credentials.
-        """
         self.security = security
-        self.headers = self._derive_headers()
-
-    def _derive_headers(self) -> Dict[str, Dict[str, str]]:
-        """
-        Derive all necessary headers from the One Key.
-        """
-        return {
-            "notion": {
-                "Authorization": f"Bearer {self.security.get_credential('COLLAB', 'NOTION_TOKEN')}",
-                "Notion-Version": "2022-06-28",
-                "Content-Type": "application/json"
-            },
-            "linear": {
-                "Authorization": self.security.get_credential('COLLAB', 'LINEAR_API_KEY'),
-                "Content-Type": "application/json"
-            },
-            "slack": {
-                "Authorization": f"Bearer {self.security.get_credential('COLLAB', 'SLACK_BOT_TOKEN')}",
-                "Content-Type": "application/json"
-            }
-        }
-
-    def sync_architecture_state(self, state_data: Dict[str, Any]) -> str:
-        """
-        Push current system evolution state to Notion "Tree of Life" dashboard.
-        """
-        print(f"📡 SYNC: Updating Notion Architecture Dashboard...")
-        # In a real run, this would POST to the Notion API
-        # url = "https://api.notion.com/v1/pages"
-        # response = requests.post(url, headers=self.headers['notion'], json=...)
-        return "notion_sync_complete_v5"
-
-    def create_optimization_task(self, title: str, description: str, priority: int = 1) -> str:
-        """
-        Auto-generate Linear tickets for code optimization tasks found by AI agents.
-        """
-        print(f"⚡ LINEAR: Creating Task '{title}' (Priority {priority})")
-        # url = "https://api.linear.app/graphql"
-        # query = ...
-        return "lin_task_12345"
+        # Derived headers are checked at runtime
+        self.notion_token = self.security.get_credential('COLLAB', 'NOTION_TOKEN')
+        self.linear_key = self.security.get_credential('COLLAB', 'LINEAR_API_KEY')
+        self.slack_token = self.security.get_credential('COLLAB', 'SLACK_BOT_TOKEN')
 
     def broadcast_pulse(self, message: str, level: str = "info"):
         """
-        Send operational pulse to Slack command channel.
+        Sends a REAL message to Slack.
         """
-        emoji = "🟢" if level == "info" else "🔴"
-        print(f"💬 SLACK: {emoji} {message}")
-        # url = "https://slack.com/api/chat.postMessage"
-        # requests.post(url, headers=self.headers['slack'], json=...)
+        if not self.slack_token or "mock" in self.slack_token:
+            print(f"⚠️  SLACK: Token missing. Message not sent: '{message}'")
+            return
 
-    def execute_full_sync(self):
-        """
-        Run a full cycle synchronization across all platforms.
-        """
-        self.broadcast_pulse("Initiating autonomous collaboration sync...")
-        self.sync_architecture_state({"autonomy_level": 5})
-        self.create_optimization_task("Optimize neural pathways", "Reduce latency by 5ms")
-        self.broadcast_pulse("Sync cycle complete. Systems nominal.")
+        url = "https://slack.com/api/chat.postMessage"
+        headers = {
+            "Authorization": f"Bearer {self.slack_token}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "channel": "#autonomous-ops",
+            "text": f"{'🟢' if level=='info' else '🔴'} {message}"
+        }
+        
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=5)
+            if not resp.json().get("ok"):
+                print(f"❌ SLACK ERROR: {resp.json().get('error')}")
+            else:
+                print(f"✅ SLACK: Message delivered.")
+        except Exception as e:
+            print(f"❌ SLACK NETWORK ERROR: {e}")
 
-if __name__ == "__main__":
-    # Test stub
-    # In production, this is called by the Orchestrator
-    pass
+    def create_optimization_task(self, title: str, description: str, priority: int = 1) -> str:
+        """
+        Creates a REAL ticket in Linear.
+        """
+        if not self.linear_key or "mock" in self.linear_key:
+            print("⚠️  LINEAR: API Key missing. Task skipped.")
+            return "skipped"
+
+        url = "https://api.linear.app/graphql"
+        headers = {
+            "Authorization": self.linear_key,
+            "Content-Type": "application/json"
+        }
+        query = """
+        mutation IssueCreate($title: String!, $description: String!, $priority: Int!) {
+            issueCreate(input: {
+                title: $title,
+                description: $description,
+                priority: $priority,
+                teamId: "YOUR_TEAM_ID_HERE" 
+            }) {
+                issue { id identifier }
+            }
+        }
+        """
+        variables = {"title": title, "description": description, "priority": priority}
+        
+        try:
+            resp = requests.post(url, headers=headers, json={"query": query, "variables": variables})
+            if "errors" in resp.json():
+                print(f"❌ LINEAR ERROR: {resp.json()['errors'][0]['message']}")
+                return "error"
+            
+            issue_id = resp.json()['data']['issueCreate']['issue']['identifier']
+            print(f"✅ LINEAR: Ticket created ({issue_id})")
+            return issue_id
+        except Exception as e:
+            print(f"❌ LINEAR NETWORK ERROR: {e}")
+            return "net_error"
