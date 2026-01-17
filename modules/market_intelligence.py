@@ -17,14 +17,14 @@ from typing import List, Dict
 
 class MarketIntelligence:
     def __init__(self):
-        # Real target URLs for 2026 competitors
+        # Updated targets to more stable URL paths (Main Blogs)
         self.targets = {
-            "Kore.ai": "https://kore.ai/platform/changelog/",
-            "Microsoft": "https://learn.microsoft.com/en-us/microsoft-copilot/updates",
-            "Salesforce": "https://www.salesforce.com/products/agentforce/updates/"
+            "Kore.ai": "https://kore.ai/blog/",
+            "Microsoft": "https://blogs.microsoft.com/ai/",
+            "Salesforce": "https://www.salesforce.com/news/press-releases/"
         }
         self.headers = {
-            "User-Agent": "Autonomous-Orchestrator-Scanner/5.0"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
 
     def scan_landscape(self) -> List[str]:
@@ -37,17 +37,26 @@ class MarketIntelligence:
 
         for competitor, url in self.targets.items():
             try:
-                # Real network request
-                response = requests.get(url, headers=self.headers, timeout=5)
+                # Real network request with 10s timeout
+                response = requests.get(url, headers=self.headers, timeout=10)
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
-                    # This logic would need specific selectors for each site
-                    # For now, we grab the first H2/H3 as a potential "new feature"
-                    latest_update = soup.find(['h2', 'h3'])
-                    if latest_update:
-                        text = latest_update.get_text().strip()
-                        print(f"   > {competitor}: Detected '{text}'")
-                        detected_features.append(f"{competitor}: {text}")
+                    
+                    # Generic scraping for article titles
+                    # Most blogs use h2 or h3 for titles
+                    titles = soup.find_all(['h2', 'h3'], limit=3)
+                    
+                    found_any = False
+                    for title in titles:
+                        text = title.get_text().strip()
+                        if len(text) > 10: # Filter out empty/short headers
+                            print(f"   > {competitor} (Active): '{text[:60]}...'")
+                            detected_features.append(f"{competitor}: {text}")
+                            found_any = True
+                            break # Just get the top one
+                    
+                    if not found_any:
+                         print(f"   > {competitor}: Site Active (200 OK), but no headlines parsed.")
                 else:
                     print(f"   > {competitor}: Connection Failed ({response.status_code})")
             except Exception as e:
@@ -59,7 +68,7 @@ class MarketIntelligence:
         """
         Analyzes real text data to determine threat.
         """
-        threat_keywords = ["autonomous", "agent", "self-healing", "zero-config"]
+        threat_keywords = ["autonomous", "agent", "self-healing", "zero-config", "level 5"]
         for feature in features:
             if any(keyword in feature.lower() for keyword in threat_keywords):
                 return "HIGH - COMPETITOR ADVANCING"
