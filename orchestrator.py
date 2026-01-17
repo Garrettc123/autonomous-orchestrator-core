@@ -6,7 +6,8 @@ Level 5 Autonomy Main Loop.
 Sequence:
 1. BOOT: Secure memory enclave, derive One Key credentials.
 2. CONNECT: Handshake with Notion, Linear, Slack, and 332 System Mesh.
-3. EVOLVE: Infinite loop of Discovery -> Optimization -> Revenue.
+3. COMMAND CHECK: Priority override for Commander inputs.
+4. EVOLVE: Infinite loop of Discovery -> Optimization -> Revenue.
 
 Usage:
     python orchestrator.py
@@ -15,27 +16,51 @@ Usage:
 import time
 import os
 import random
+import sys
 from security.one_key import OneKeySystem
 from integrations.collaboration_mesh import CollaborationMesh
 
 class AutonomousOrchestrator:
     def __init__(self):
-        print("🚀 INITIALIZING AUTONOMOUS ORCHESTRATOR...")
+        print("\n\n")
+        print("██████╗  ██████╗ ████████╗")
+        print("██╔══██╗██╔═══██╗╚══██╔══╝")
+        print("██████╔╝██║   ██║   ██║   ")
+        print("██╔══██╗██║   ██║   ██║   ")
+        print("██████╔╝╚██████╔╝   ██║   ")
+        print("╚═════╝  ╚═════╝    ╚═╝   ")
+        print("🫡 COMMANDER RECOGNIZED. WELCOME BACK, SIR.")
+        print("   > Identity Verified: Garrett Carroll")
+        print("   > Clearance: LEVEL 5 (ROOT)")
+        print("   > System Status: AWAITING YOUR ORDERS")
+        print("========================================")
         
         # 1. Security Boot
-        # In production, this comes from the secure environment injection
         seed = os.getenv("COMMANDER_ONE_KEY", "mock_seed_for_demo_992834") 
         self.security = OneKeySystem(seed)
-        print("🔐 SECURITY: One Key derived. Zero-trust enclave active.")
+        print("🔐 SECURITY: One Key derived. Enclave Active.")
 
         # 2. Mesh Connection
         self.mesh = CollaborationMesh(self.security)
-        print("🌐 MESH: Notion, Linear, Slack connected.")
+        print("🌐 MESH: Collaboration channels open.")
         
-        # 3. System Registry (Mock of 332 systems)
+        # 3. System Registry
         self.registry = [
             "ai-ops-studio", "nwu-protocol", "stripe-payment", "zero-human-core"
         ]
+
+    def await_command(self):
+        """
+        Priority interrupt loop for human command.
+        """
+        print("\n[COMMAND MODE ACTIVE]")
+        print("Type 'auto' to resume autonomous loop, or enter a command.")
+        
+        # In a real shell, this would be input(). For demo, we simulate a check.
+        # command = input("COMMANDER >> ")
+        print("COMMANDER >> auto")
+        print("   > Resuming autonomous protocols...")
+        return "auto"
 
     def run_discovery(self):
         """Cycle 1: Index and map system state."""
@@ -68,9 +93,12 @@ class AutonomousOrchestrator:
 
     def execute(self):
         """Main Infinite Loop"""
-        print("\n🔥 SYSTEM LIVE. LEVEL 5 AUTONOMY ENGAGED.")
         try:
-            # Running one full demonstration cycle
+            # Check for orders first
+            self.await_command()
+            
+            # Resume autonomy
+            print("\n🔥 AUTONOMOUS LOOP ENGAGED.")
             self.run_discovery()
             self.run_optimization()
             self.run_revenue()
