@@ -5,8 +5,17 @@
 - **Clearance**: Level 5 (Root Access / Override Authority)
 - **Status**: **ACTIVE - IN COMMAND**
 
-## 🚀 System Overview
-The central nervous system unifying 332 independent enterprise repositories into a single self-evolving biological software organism. This system orchestrates communication, upgrades, and revenue generation across the entire $100M+ stack.
+## 🚀 Deployment (Commander Access Only)
+```bash
+# 1. Clone the secure repository
+git clone https://github.com/Garrettc123/autonomous-orchestrator-core.git
+
+# 2. Enter the directory
+cd autonomous-orchestrator-core
+
+# 3. Run the Universal Bootloader
+bash boot.sh
+```
 
 ## 🧠 Core Architecture
 - **Cognitive Layer**: LangGraph + CrewAI for multi-agent reasoning
@@ -26,15 +35,6 @@ The central nervous system unifying 332 independent enterprise repositories into
 - **Protocol**: One Key System (Military-Grade Hierarchy)
 - **Mechanism**: Single 256-bit Master Seed derives all 332+ API tokens at runtime.
 - **Zero-Trust**: No keys stored on disk. System locks instantly upon seed withdrawal.
-
-## 🛠️ Deployment
-```bash
-# Initialize the entire ecosystem
-make bootstrap-universe
-
-# Start the autonomous evolution loop
-make evolve
-```
 
 ## 📈 Autonomy Level
 - **Level 5**: Fully autonomous self-repair and self-upgrade.
