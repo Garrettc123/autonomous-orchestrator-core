@@ -7,7 +7,8 @@ Sequence:
 1. BOOT: Secure memory enclave, derive One Key credentials.
 2. CONNECT: Handshake with Notion, Linear, Slack, and 332 System Mesh.
 3. COMMAND CHECK: Priority override for Commander inputs.
-4. EVOLVE: Infinite loop of Discovery -> Optimization -> Revenue.
+4. INTELLIGENCE: Scan global competitors (Kore.ai, MSFT) and BEAT THEM.
+5. EVOLVE: Infinite loop of Discovery -> Optimization -> Revenue.
 
 Usage:
     python orchestrator.py
@@ -19,6 +20,7 @@ import random
 import sys
 from security.one_key import OneKeySystem
 from integrations.collaboration_mesh import CollaborationMesh
+from modules.market_intelligence import MarketIntelligence
 
 class AutonomousOrchestrator:
     def __init__(self):
@@ -44,7 +46,10 @@ class AutonomousOrchestrator:
         self.mesh = CollaborationMesh(self.security)
         print("🌐 MESH: Collaboration channels open.")
         
-        # 3. System Registry
+        # 3. Intelligence
+        self.intel = MarketIntelligence()
+
+        # 4. System Registry
         self.registry = [
             "ai-ops-studio", "nwu-protocol", "stripe-payment", "zero-human-core"
         ]
@@ -61,6 +66,17 @@ class AutonomousOrchestrator:
         print("COMMANDER >> auto")
         print("   > Resuming autonomous protocols...")
         return "auto"
+
+    def run_intelligence_cycle(self):
+        """Cycle 0: Beat the competition."""
+        print("\n🧠 [CYCLE 0] MARKET DOMINANCE CHECK")
+        threats = self.intel.scan_landscape()
+        strategy = self.intel.generate_superiority_strategy(threats)
+        self.intel.report_status()
+        if strategy['action'] == "DEPLOY_COUNTERMEASURE":
+            print(f"   🚀 EXECUTING UPGRADE: {strategy['upgrade_vector']}")
+            time.sleep(0.5)
+            print("   ✅ SYSTEM UPGRADED. COMPETITIVE GAP WIDENED.")
 
     def run_discovery(self):
         """Cycle 1: Index and map system state."""
@@ -99,6 +115,7 @@ class AutonomousOrchestrator:
             
             # Resume autonomy
             print("\n🔥 AUTONOMOUS LOOP ENGAGED.")
+            self.run_intelligence_cycle()  # NEW: Check & Beat Competitors
             self.run_discovery()
             self.run_optimization()
             self.run_revenue()
