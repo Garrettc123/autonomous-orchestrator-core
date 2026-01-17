@@ -1,23 +1,16 @@
 """
-AUTONOMOUS ORCHESTRATOR - EXECUTION ENGINE
-==========================================
+AUTONOMOUS ORCHESTRATOR - EXECUTION ENGINE (PRODUCTION)
+=======================================================
 Level 5 Autonomy Main Loop.
 
-Sequence:
-1. BOOT: Secure memory enclave, derive One Key credentials.
-2. CONNECT: Handshake with Notion, Linear, Slack, and 332 System Mesh.
-3. COMMAND CHECK: Priority override for Commander inputs.
-4. INTELLIGENCE: Scan global competitors (Kore.ai, MSFT) and BEAT THEM.
-5. EVOLVE: Infinite loop of Discovery -> Optimization -> Revenue.
-
-Usage:
-    python orchestrator.py
+NO SIMULATIONS.
+This engine executes REAL code. 
+If credentials are missing, operations WILL fail.
 """
 
-import time
-import os
-import random
 import sys
+import os
+import time
 from security.one_key import OneKeySystem
 from integrations.collaboration_mesh import CollaborationMesh
 from modules.market_intelligence import MarketIntelligence
@@ -34,94 +27,57 @@ class AutonomousOrchestrator:
         print("🫡 COMMANDER RECOGNIZED. WELCOME BACK, SIR.")
         print("   > Identity Verified: Garrett Carroll")
         print("   > Clearance: LEVEL 5 (ROOT)")
-        print("   > System Status: AWAITING YOUR ORDERS")
         print("========================================")
         
         # 1. Security Boot
-        seed = os.getenv("COMMANDER_ONE_KEY", "mock_seed_for_demo_992834") 
+        seed = os.getenv("COMMANDER_ONE_KEY") 
+        if not seed:
+            print("❌ CRITICAL: 'COMMANDER_ONE_KEY' missing from environment.")
+            print("   System cannot boot in production mode without the Master Seed.")
+            sys.exit(1)
+            
         self.security = OneKeySystem(seed)
         print("🔐 SECURITY: One Key derived. Enclave Active.")
 
         # 2. Mesh Connection
         self.mesh = CollaborationMesh(self.security)
-        print("🌐 MESH: Collaboration channels open.")
+        print("🌐 MESH: Collaboration channels initialized.")
         
         # 3. Intelligence
         self.intel = MarketIntelligence()
 
-        # 4. System Registry
-        self.registry = [
-            "ai-ops-studio", "nwu-protocol", "stripe-payment", "zero-human-core"
-        ]
-
-    def await_command(self):
-        """
-        Priority interrupt loop for human command.
-        """
-        print("\n[COMMAND MODE ACTIVE]")
-        print("Type 'auto' to resume autonomous loop, or enter a command.")
-        
-        # In a real shell, this would be input(). For demo, we simulate a check.
-        # command = input("COMMANDER >> ")
-        print("COMMANDER >> auto")
-        print("   > Resuming autonomous protocols...")
-        return "auto"
-
     def run_intelligence_cycle(self):
-        """Cycle 0: Beat the competition."""
+        """Cycle 0: Beat the competition (REAL SCAN)."""
         print("\n🧠 [CYCLE 0] MARKET DOMINANCE CHECK")
         threats = self.intel.scan_landscape()
-        strategy = self.intel.generate_superiority_strategy(threats)
-        self.intel.report_status()
-        if strategy['action'] == "DEPLOY_COUNTERMEASURE":
-            print(f"   🚀 EXECUTING UPGRADE: {strategy['upgrade_vector']}")
-            time.sleep(0.5)
-            print("   ✅ SYSTEM UPGRADED. COMPETITIVE GAP WIDENED.")
-
-    def run_discovery(self):
-        """Cycle 1: Index and map system state."""
-        print("\n🔎 [CYCLE 1] DISCOVERY")
-        print(f"   Indexing {len(self.registry)} core systems...")
-        time.sleep(0.5)
-        print("   > Mapped API schema for 'nwu-protocol'")
-        print("   > Detected latency spike in 'stripe-payment' (210ms)")
+        
+        if threats:
+            print(f"⚠️  REAL THREATS DETECTED: {len(threats)}")
+            # Real counter-strategy logic would go here (e.g. self-coding)
+            self.mesh.broadcast_pulse(f"Competitor update detected: {threats[0]}", "warning")
+        else:
+            print("   ✅ No immediate feature threats detected on public channels.")
 
     def run_optimization(self):
-        """Cycle 2: Self-repair and optimize."""
+        """Cycle 2: Self-repair (REAL TICKET)."""
         print("\n⚡ [CYCLE 2] OPTIMIZATION")
-        task_id = self.mesh.create_optimization_task(
-            title="Optimize Stripe Latency", 
-            description="Reduce p95 latency from 210ms to <100ms",
-            priority=1
+        # In production, this would be triggered by real metrics (Prometheus)
+        # For now, we attempt to create a 'System Check' ticket to verify the pipe.
+        self.mesh.create_optimization_task(
+            title="Autonomous System Health Check", 
+            description="Verify connection to Linear API from Orchestrator.",
+            priority=3
         )
-        print(f"   > Auto-created Linear ticket: {task_id}")
-        print("   > Deploying hotfix to 'stripe-payment' containers...")
-        time.sleep(0.5)
-        print("   > VERIFIED: Latency now 45ms.")
-
-    def run_revenue(self):
-        """Cycle 3: Monetization and reporting."""
-        print("\n💰 [CYCLE 3] REVENUE & REPORTING")
-        revenue = random.randint(50, 500)
-        print(f"   > Captured new liquidity bond: ${revenue}.00")
-        self.mesh.sync_architecture_state({"revenue_cycle": "active", "last_capture": revenue})
-        self.mesh.broadcast_pulse(f"Cycle complete. Revenue captured: ${revenue}. Systems optimized.", "info")
 
     def execute(self):
         """Main Infinite Loop"""
+        print("\n🔥 AUTONOMOUS LOOP ENGAGED (PRODUCTION MODE).")
         try:
-            # Check for orders first
-            self.await_command()
-            
-            # Resume autonomy
-            print("\n🔥 AUTONOMOUS LOOP ENGAGED.")
-            self.run_intelligence_cycle()  # NEW: Check & Beat Competitors
-            self.run_discovery()
+            self.run_intelligence_cycle()
             self.run_optimization()
-            self.run_revenue()
-            print("\n✅ ORCHESTRATION CYCLE COMPLETE. STANDING BY.")
+            print("\n✅ ORCHESTRATION CYCLE COMPLETE.")
         except KeyboardInterrupt:
-            self.security.lock()
+            print("\n🛑 SYSTEM HALTED BY USER.")
 
 if __name__ == "__main__":
     bot = AutonomousOrchestrator()
