@@ -1,6 +1,6 @@
 #!/bin/bash
-# AUTONOMOUS SYSTEM BOOTLOADER v1.2
-# "No Lies" Production Setup + Persistent Secrets
+# AUTONOMOUS SYSTEM BOOTLOADER v1.3
+# "No Lies" Production Setup + Persistent Secrets + Fixes
 
 set -e
 
@@ -49,11 +49,10 @@ if [ -z "$COMMANDER_ONE_KEY" ]; then
     echo "🔑 ENTER COMMANDER ONE KEY (Required):"
     read -s COMMANDER_ONE_KEY
     export COMMANDER_ONE_KEY
-    # Note: We do NOT save the Master Seed to disk by default for max security,
-    # but we save the integration keys below.
 fi
 
 # 7. Optional Real Integration (Persistent)
+# Only ask if keys are missing from environment AND secrets.env
 if [ -z "$LINEAR_API_KEY" ] && [ -z "$SLACK_BOT_TOKEN" ]; then
     echo ""
     echo "🔌 OPTIONAL: Connect Real Integrations? (y/n)"
