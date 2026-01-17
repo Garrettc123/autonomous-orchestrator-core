@@ -1,6 +1,6 @@
 #!/bin/bash
-# AUTONOMOUS SYSTEM BOOTLOADER v1.1
-# "No Lies" Production Setup
+# AUTONOMOUS SYSTEM BOOTLOADER v1.2
+# "No Lies" Production Setup + Persistent Secrets
 
 set -e
 
@@ -36,27 +36,47 @@ source venv/bin/activate
 echo "⬇️  Installing production dependencies..."
 pip install -r requirements.txt --quiet
 
-# 5. Security Input (Mandatory)
+# 5. Load Persistent Secrets
+if [ -f "secrets.env" ]; then
+    echo "🔓 Loading keys from secrets.env..."
+    set -a
+    source secrets.env
+    set +a
+fi
+
+# 6. Security Input (Mandatory & Persistent)
 if [ -z "$COMMANDER_ONE_KEY" ]; then
     echo "🔑 ENTER COMMANDER ONE KEY (Required):"
     read -s COMMANDER_ONE_KEY
     export COMMANDER_ONE_KEY
+    # Note: We do NOT save the Master Seed to disk by default for max security,
+    # but we save the integration keys below.
 fi
 
-# 6. Optional Real Integration
-echo ""
-echo "🔌 OPTIONAL: Connect Real Integrations? (y/n)"
-read -r CONNECT_REAL
-if [[ "$CONNECT_REAL" =~ ^[Yy]$ ]]; then
-    echo "   Enter Linear API Key (Press Enter to skip):"
-    read -r LIN_KEY
-    if [ ! -z "$LIN_KEY" ]; then export LINEAR_API_KEY="$LIN_KEY"; fi
-    
-    echo "   Enter Slack Bot Token (Press Enter to skip):"
-    read -r SL_KEY
-    if [ ! -z "$SL_KEY" ]; then export SLACK_BOT_TOKEN="$SL_KEY"; fi
+# 7. Optional Real Integration (Persistent)
+if [ -z "$LINEAR_API_KEY" ] && [ -z "$SLACK_BOT_TOKEN" ]; then
+    echo ""
+    echo "🔌 OPTIONAL: Connect Real Integrations? (y/n)"
+    read -r CONNECT_REAL
+    if [[ "$CONNECT_REAL" =~ ^[Yy]$ ]]; then
+        echo "   Enter Linear API Key (Press Enter to skip):"
+        read -r LIN_KEY
+        if [ ! -z "$LIN_KEY" ]; then 
+            export LINEAR_API_KEY="$LIN_KEY"
+            echo "export LINEAR_API_KEY='$LIN_KEY'" >> secrets.env
+            echo "   ✅ Linear Key saved to secrets.env"
+        fi
+        
+        echo "   Enter Slack Bot Token (Press Enter to skip):"
+        read -r SL_KEY
+        if [ ! -z "$SL_KEY" ]; then 
+            export SLACK_BOT_TOKEN="$SL_KEY"
+            echo "export SLACK_BOT_TOKEN='$SL_KEY'" >> secrets.env
+            echo "   ✅ Slack Token saved to secrets.env"
+        fi
+    fi
 fi
 
-# 7. Execute
+# 8. Execute
 echo "🚀 Booting Orchestrator..."
 python orchestrator.py
