@@ -33,7 +33,6 @@ class AutonomousOrchestrator:
         seed = os.getenv("COMMANDER_ONE_KEY") 
         if not seed:
             print("❌ CRITICAL: 'COMMANDER_ONE_KEY' missing from environment.")
-            print("   System cannot boot in production mode without the Master Seed.")
             sys.exit(1)
             
         self.security = OneKeySystem(seed)
@@ -53,7 +52,7 @@ class AutonomousOrchestrator:
         
         if threats:
             print(f"⚠️  REAL THREATS DETECTED: {len(threats)}")
-            # Real counter-strategy logic would go here (e.g. self-coding)
+            # Broadcast the specific threat to Slack
             self.mesh.broadcast_pulse(f"Competitor update detected: {threats[0]}", "warning")
         else:
             print("   ✅ No immediate feature threats detected on public channels.")
@@ -61,11 +60,9 @@ class AutonomousOrchestrator:
     def run_optimization(self):
         """Cycle 2: Self-repair (REAL TICKET)."""
         print("\n⚡ [CYCLE 2] OPTIMIZATION")
-        # In production, this would be triggered by real metrics (Prometheus)
-        # For now, we attempt to create a 'System Check' ticket to verify the pipe.
         self.mesh.create_optimization_task(
             title="Autonomous System Health Check", 
-            description="Verify connection to Linear API from Orchestrator.",
+            description="Verify connection to Linear API from Orchestrator. System is live.",
             priority=3
         )
 
@@ -73,9 +70,12 @@ class AutonomousOrchestrator:
         """Main Infinite Loop"""
         print("\n🔥 AUTONOMOUS LOOP ENGAGED (PRODUCTION MODE).")
         try:
-            self.run_intelligence_cycle()
-            self.run_optimization()
-            print("\n✅ ORCHESTRATION CYCLE COMPLETE.")
+            while True:
+                self.run_intelligence_cycle()
+                self.run_optimization()
+                print("\n✅ CYCLE COMPLETE. SLEEPING FOR 1 HOUR...")
+                print("   (Press Ctrl+C to interrupt)")
+                time.sleep(3600) # Run every hour
         except KeyboardInterrupt:
             print("\n🛑 SYSTEM HALTED BY USER.")
 
