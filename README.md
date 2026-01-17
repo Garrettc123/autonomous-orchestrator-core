@@ -1,5 +1,10 @@
 # Autonomous Orchestrator Core
 
+## 👑 Command Hierarchy
+- **Commander-in-Chief**: Garrett Carroll (Lead)
+- **Clearance**: Level 5 (Root Access / Override Authority)
+- **Status**: **ACTIVE - IN COMMAND**
+
 ## 🚀 System Overview
 The central nervous system unifying 332 independent enterprise repositories into a single self-evolving biological software organism. This system orchestrates communication, upgrades, and revenue generation across the entire $100M+ stack.
 
@@ -32,5 +37,5 @@ make evolve
 ```
 
 ## 📈 Autonomy Level
-- **Level 5**: Fully autonomous self-repair and self-upgrade
-- **Human Role**: Strategic oversight and high-level goal setting only
+- **Level 5**: Fully autonomous self-repair and self-upgrade.
+- **Override Protocol**: Commander commands take immediate precedence over autonomous logic.
