@@ -1,0 +1,228 @@
+name: Max Out All Repos
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  max-repos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests PyGithub
+
+      - name: Run max-out script
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          cat << 'PYEOF' > max_repos.py
+          import os, time, requests
+          from github import Github, GithubException
+
+          PAT = os.environ['GH_PAT']
+          g = Github(PAT)
+          user = g.get_user()
+          username = user.login
+          print(f'Authenticated as: {username}')
+
+          headers = {'Authorization': f'token {PAT}', 'Accept': 'application/vnd.github.v3+json'}
+
+          def api(method, path, **kwargs):
+              url = f'https://api.github.com{path}'
+              r = getattr(requests, method)(url, headers=headers, **kwargs)
+              time.sleep(0.3)
+              return r
+
+          repos = []
+          page = 1
+          while True:
+              r = api('get', f'/user/repos?per_page=100&page={page}&affiliation=owner')
+              data = r.json()
+              if not data: break
+              repos.extend(data)
+              page += 1
+
+          print(f'Total repos: {len(repos)}')
+
+          dependabot_yml = '''version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+'''
+
+          ci_yml = '''name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: |
+          echo "Running CI checks..."
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f package.json ]; then npm install && npm test; fi
+          echo "CI complete"
+'''
+
+          security_yml = '''name: Security Scan
+on:
+  push:
+    branches: [main, master]
+  schedule:
+    - cron: "0 0 * * 1"
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+'''
+
+          codeql_yml = '''name: CodeQL
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: "30 1 * * 0"
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      matrix:
+        language: [python]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3
+'''
+
+          topics_map = {
+              'Pipeline-A.I': ['ai', 'pipeline', 'automation', 'machine-learning'],
+              'autonomous': ['autonomous', 'ai', 'automation', 'orchestration'],
+              'orchestrat': ['orchestration', 'automation', 'ai'],
+              'install': ['installer', 'setup', 'automation'],
+              'security': ['security', 'cybersecurity', 'automation'],
+              'boot': ['bootstrap', 'automation', 'setup'],
+          }
+
+          def get_topics(name):
+              topics = ['automation', 'github-actions']
+              for k, v in topics_map.items():
+                  if k.lower() in name.lower():
+                      topics.extend(v)
+              return list(set(topics))[:20]
+
+          def push_file(owner, repo_name, path, content, message):
+              import base64
+              r = api('get', f'/repos/{owner}/{repo_name}/contents/{path}')
+              sha = r.json().get('sha') if r.status_code == 200 else None
+              payload = {'message': message, 'content': base64.b64encode(content.encode()).decode()}
+              if sha: payload['sha'] = sha
+              api('put', f'/repos/{owner}/{repo_name}/contents/{path}', json=payload)
+
+          for repo in repos:
+              name = repo['name']
+              owner = repo['owner']['login']
+              archived = repo.get('archived', False)
+              fork = repo.get('fork', False)
+              default_branch = repo.get('default_branch', 'main')
+
+              print(f'Processing: {owner}/{name}')
+
+              if archived:
+                  print(f'  Skipping archived repo')
+                  continue
+
+              # Update repo settings
+              api('patch', f'/repos/{owner}/{name}', json={
+                  'has_issues': True,
+                  'has_projects': True,
+                  'has_wiki': True,
+                  'has_discussions': True,
+                  'allow_squash_merge': True,
+                  'allow_merge_commit': True,
+                  'allow_rebase_merge': True,
+                  'delete_branch_on_merge': True,
+              })
+
+              # Set topics
+              current_topics = repo.get('topics', [])
+              if len(current_topics) < 3:
+                  new_topics = get_topics(name)
+                  api('put', f'/repos/{owner}/{name}/topics', json={'names': new_topics})
+
+              if not fork:
+                  # Push dependabot
+                  push_file(owner, name, '.github/dependabot.yml', dependabot_yml, 'chore: add dependabot config')
+                  # Push CI
+                  push_file(owner, name, '.github/workflows/ci.yml', ci_yml, 'chore: add CI workflow')
+                  # Push security scan
+                  push_file(owner, name, '.github/workflows/security.yml', security_yml, 'chore: add security scan')
+                  # Push CodeQL
+                  push_file(owner, name, '.github/workflows/codeql.yml', codeql_yml, 'chore: add CodeQL analysis')
+
+                  # Enable vulnerability alerts
+                  requests.put(
+                      f'https://api.github.com/repos/{owner}/{name}/vulnerability-alerts',
+                      headers={**headers, 'Accept': 'application/vnd.github.dorian-preview+json'}
+                  )
+                  time.sleep(0.2)
+
+                  # Enable automated security fixes
+                  requests.put(
+                      f'https://api.github.com/repos/{owner}/{name}/automated-security-fixes',
+                      headers={**headers, 'Accept': 'application/vnd.github.london-preview+json'}
+                  )
+                  time.sleep(0.2)
+
+                  # Branch protection on default branch
+                  api('put', f'/repos/{owner}/{name}/branches/{default_branch}/protection', json={
+                      'required_status_checks': {'strict': True, 'contexts': []},
+                      'enforce_admins': False,
+                      'required_pull_request_reviews': {'required_approving_review_count': 1, 'dismiss_stale_reviews': True},
+                      'restrictions': None,
+                      'allow_force_pushes': False,
+                      'allow_deletions': False,
+                  })
+
+              print(f'  Done: {name}')
+
+          print('ALL REPOS MAXED OUT!')
+          PYEOF
+          python max_repos.py
