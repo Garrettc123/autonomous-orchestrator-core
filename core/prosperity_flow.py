@@ -5,9 +5,15 @@ Integrates all revenue systems into a single synchronic stream.
 """
 
 import os
-import stripe
 from dataclasses import dataclass
 from datetime import datetime
+
+try:
+    import stripe
+    _STRIPE_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    stripe = None  # type: ignore[assignment]
+    _STRIPE_AVAILABLE = False
 
 @dataclass
 class WealthSignal:
@@ -25,9 +31,11 @@ class ProsperityFlow:
         
         # Initialize Stripe
         stripe_key = os.getenv("STRIPE_SECRET_KEY")
-        if stripe_key:
-            stripe.api_key = stripe_key
+        if stripe_key and _STRIPE_AVAILABLE:
+            stripe.api_key = stripe_key  # type: ignore[union-attr]
             print("✅ Stripe connected for REAL money flow")
+        elif stripe_key and not _STRIPE_AVAILABLE:
+            print("⚠️  Stripe package not installed - run: pip install stripe")
         else:
             print("⚠️  Stripe not configured - set STRIPE_SECRET_KEY for real money")
     

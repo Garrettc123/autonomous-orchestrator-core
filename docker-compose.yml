@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  orchestrator:
+    build: .
+    container_name: autonomous-orchestrator
+    environment:
+      - COMMANDER_ONE_KEY=${COMMANDER_ONE_KEY}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - LINEAR_API_KEY=${LINEAR_API_KEY:-}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}
+      - NOTION_TOKEN=${NOTION_TOKEN:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    command: python orchestrator.py
+
+  ecosystem:
+    build: .
+    container_name: autonomous-ecosystem
+    environment:
+      - COMMANDER_ONE_KEY=${COMMANDER_ONE_KEY:-ecosystem_default}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    command: python run_all_systems.py
