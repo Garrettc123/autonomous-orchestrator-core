@@ -13,6 +13,9 @@ from datetime import datetime
 from core.capabilities_registry import UnprecedentedCapabilitiesRegistry
 from core.capability_sync import CapabilitySyncEngine
 
+# Ensure the logs directory exists before configuring file-based logging
+os.makedirs("logs", exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - [HARMONY] - %(message)s',
@@ -117,8 +120,5 @@ async def main():
         logger.info("\n🙏 System continues to flow in the background. Harmony is eternal.")
 
 if __name__ == "__main__":
-    # Create logs directory
-    os.makedirs("logs", exist_ok=True)
-    
     # Run the ecosystem
     asyncio.run(main())

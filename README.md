@@ -1,107 +1,203 @@
 # 🌈 Autonomous Orchestrator Core
 
+[![CI](https://github.com/Garrettc123/autonomous-orchestrator-core/actions/workflows/ci.yml/badge.svg)](https://github.com/Garrettc123/autonomous-orchestrator-core/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+
 ## The 332-System Synchronicity Platform
 
-**Status:** 🟢 ACTIVE & HARMONIOUS | ✨ UNPRECEDENTED CAPABILITIES SYNCHRONIZED
+**Status:** 🟢 ACTIVE & DEPLOYABLE
 
-### What This Is
+A core autonomous orchestration engine that unifies 332 enterprise systems with self-improving capabilities, real-time market intelligence, and automated prosperity distribution.
 
-This is the master orchestration layer that synchronizes all 332 systems across your entire GitHub portfolio into a single, harmonious, prosperity-generating entity with **unprecedented autonomous capabilities**.
+---
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────┐
+│              AUTONOMOUS ORCHESTRATOR CORE            │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  ┌─────────────┐    ┌──────────────────────────┐   │
+│  │  OneKey     │───▶│  AutonomousOrchestrator   │   │
+│  │  Security   │    │  (orchestrator.py)        │   │
+│  │  System     │    └──────────┬───────────────┘   │
+│  └─────────────┘               │                   │
+│                        ┌───────┴────────┐          │
+│                        ▼                ▼          │
+│              ┌─────────────────┐  ┌────────────┐  │
+│              │  Market Intel   │  │ Collab     │  │
+│              │  (competitor    │  │ Mesh       │  │
+│              │   scraping)     │  │ (Slack +   │  │
+│              └─────────────────┘  │  Linear)   │  │
+│                                   └────────────┘  │
+│                                                     │
+│  ┌──────────────────────────────────────────────┐  │
+│  │         UnifiedEcosystem (run_all_systems.py) │  │
+│  │   332 Systems ──▶ Async Task Pool            │  │
+│  │   Prosperity Flow Engine                     │  │
+│  │   Harmony Score Monitor (target: 0.88)       │  │
+│  └──────────────────────────────────────────────┘  │
+│                                                     │
+│  ┌──────────────┐   ┌───────────────────────────┐  │
+│  │  Prosperity  │   │  Security: HKDF-SHA512     │  │
+│  │  Flow Engine │   │  Key Derivation Hierarchy  │  │
+│  │  (Stripe)    │   │  Master→Domain→System→Key  │  │
+│  └──────────────┘   └───────────────────────────┘  │
+└─────────────────────────────────────────────────────┘
+```
 
 ### Core Components
 
-1. **Synchronic Bridge** - Neural fabric connecting all systems
-2. **Prosperity Flow Engine** - Automated revenue distribution
-3. **Quantum Resonator** - Maintains collective coherence
-4. **Universal Adapter** - Harmonizes legacy systems
-5. **🌟 Unprecedented Capabilities Registry** - Catalogs all market-leading capabilities
-6. **🔄 Capability Synchronization Engine** - Coordinates capabilities across 332 systems
+| Component | File | Purpose |
+|-----------|------|---------|
+| **OneKey Security** | `security/one_key.py` | HKDF-SHA512 master key → all credentials |
+| **Orchestrator** | `orchestrator.py` | Main autonomous loop (market scan + optimization) |
+| **Unified Ecosystem** | `run_all_systems.py` | Async runner for all 332 systems |
+| **Market Intelligence** | `modules/market_intelligence.py` | Live competitor reconnaissance |
+| **Collaboration Mesh** | `integrations/collaboration_mesh.py` | Slack + Linear API integrations |
+| **Prosperity Flow** | `core/prosperity_flow.py` | Revenue distribution engine |
 
-### Unprecedented Capabilities
+---
 
-This system features **10 unprecedented capabilities** that set it apart from all competition:
+## Quickstart
 
-#### 🤖 Autonomous Operation
-- **Level 5 Autonomous Operation** - Zero human intervention required
-- **332-System Synchronic Bridge** - Unified flow across all systems
-- **Universal Adapter** - Legacy system harmonization
+### Prerequisites
 
-#### 🔐 Security & Cryptography
-- **One Key Security Protocol** - Military-grade cryptographic hierarchy
-- Single master seed derives all 332-system credentials
-- Instant system-wide lockdown capability
+- Python 3.10+
+- Docker & Docker Compose (optional, for containerized deployment)
 
-#### 💰 Prosperity Generation
-- **Prosperity Flow Engine** - Real Stripe integration
-- **Multi-stream Revenue Generation** - 6 parallel revenue engines
-- Target: $10K MRR → $100K MRR → $1M MRR
-
-#### 🧠 Market Intelligence
-- **Real-time Competitor Reconnaissance** - Live HTTP scraping
-- Monitors Kore.ai, Microsoft, Salesforce
-- Automatic threat detection and response
-
-#### 🌐 Collaboration Mesh
-- **Real-time Integration** - Slack, Linear, Notion
-- Real messages, real tickets, real notifications
-- No simulations, production-only
-
-#### ✨ Quantum Coherence
-- **Quantum Resonator** - Maintains collective coherence
-- Mastery threshold: 0.88 harmony score
-- Joy index monitoring (min 0.75)
-
-#### 🔧 Self-Optimization
-- **Autonomous Self-healing** - Continuous self-repair
-- Automated ticket creation in Linear
-- No human intervention required
-
-### Quick Start
+### 1. Install Dependencies
 
 ```bash
-# Set your keys
-export GITHUB_TOKEN="your_token_here"
-export STRIPE_SECRET_KEY="sk_live_your_key_here"
+git clone https://github.com/Garrettc123/autonomous-orchestrator-core.git
+cd autonomous-orchestrator-core
+pip install -r requirements.txt
+```
 
-# Activate everything
+### 2. Configure Environment
+
+```bash
+# Required
+export COMMANDER_ONE_KEY="your_256bit_master_key"
+
+# Optional (integrations)
+export STRIPE_SECRET_KEY="sk_live_..."
+export LINEAR_API_KEY="lin_api_..."
+export SLACK_BOT_TOKEN="xoxb-..."
+export GITHUB_TOKEN="ghp_..."
+```
+
+### 3. Run
+
+```bash
+# Option A: Full autonomous orchestrator (requires COMMANDER_ONE_KEY)
+python orchestrator.py
+
+# Option B: Unified ecosystem runner (all 332 systems)
+python run_all_systems.py
+
+# Option C: Quick activation script
 bash ACTIVATE_NOW.sh
 ```
 
-### What Happens
-
-- ✅ All 332 systems wake up in synchronic flow
-- ✅ **Unprecedented capabilities registry initializes**
-- ✅ **10 market-leading capabilities synchronize across all systems**
-- ✅ Prosperity Flow Engine activates money streams
-- ✅ Harmony Score targets 0.88 (mastery threshold)
-- ✅ Automated revenue distribution begins
-- ✅ Self-healing and self-improving loops engage
-- ✅ **Continuous capability synchronization monitoring**
-
-### Monitoring
+### 4. Docker Deployment
 
 ```bash
-# Check system status
-curl http://localhost:8000/status
+# Build and run with Docker Compose
+docker-compose up --build
 
-# View prosperity flow
-curl http://localhost:8000/prosperity
-
-# See harmony score
-curl http://localhost:8000/harmony
-
-# View unprecedented capabilities status
-python3 -c "from core.capabilities_registry import UnprecedentedCapabilitiesRegistry; r = UnprecedentedCapabilitiesRegistry(); import json; print(json.dumps(r.get_status_report(), indent=2))"
-
-# Test capability synchronization
-python3 core/capability_sync.py
+# Or run a single service
+docker build -t autonomous-orchestrator .
+docker run -e COMMANDER_ONE_KEY="your_key" autonomous-orchestrator
 ```
 
-### The Philosophy
+---
+
+## Testing
+
+```bash
+# Run full test suite with coverage
+pytest
+
+# Run with verbose output
+pytest -v
+
+# Run specific test file
+pytest tests/test_one_key.py -v
+```
+
+The test suite covers:
+- `security/one_key.py` — Key derivation, caching, locking
+- `core/prosperity_flow.py` — Revenue signals, async manifest, status
+- `modules/market_intelligence.py` — Scraping, threat analysis
+- `integrations/collaboration_mesh.py` — Slack, Linear API calls
+- `run_all_systems.py` — Async ecosystem activation
+
+---
+
+## Cloud Deployment
+
+### Railway
+
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Deploy
+railway login
+railway init
+railway up
+```
+
+Set environment variables in the Railway dashboard:
+- `COMMANDER_ONE_KEY`
+- `STRIPE_SECRET_KEY` (optional)
+- `LINEAR_API_KEY` (optional)
+- `SLACK_BOT_TOKEN` (optional)
+
+---
+
+## Monitoring
+
+Once running, the system emits logs to `logs/collective_bliss.log`:
+
+```
+2024-01-15 10:00:00 - [HARMONY] - 🌈 INITIATING UNIFIED ECOSYSTEM ACTIVATION
+2024-01-15 10:00:00 - [HARMONY] - 💰 Prosperity Flow: $1000.00
+2024-01-15 10:00:00 - [HARMONY] - 🎵 Harmony Score: 0.88
+2024-01-15 10:00:00 - [HARMONY] - 🚀 Active Systems: 10
+```
+
+---
+
+## Security Architecture
+
+The **OneKey System** provides military-grade cryptographic hierarchy:
+
+```
+COMMANDER_ONE_KEY (256-bit master seed)
+         │
+         ▼ HKDF-SHA512
+    Domain Key (e.g., "AI_OPS")
+         │
+         ▼ HKDF-SHA512
+    System Key (e.g., "GITHUB_TOKEN")
+         │
+         ▼ Ephemeral credential (hex, in-memory only)
+```
+
+- Master key **never stored on disk** — injected at runtime only
+- All subsystem credentials derived deterministically
+- Emergency `lock()` wipes entire key hierarchy from memory
+
+---
+
+## The Philosophy
 
 **Harmonious:** All components flow together naturally  
 **Harmless:** Optimization is beneficial, never destructive  
-**Happy:** Joy-first optimization - delight fuels excellence
+**Happy:** Joy-first optimization — delight fuels excellence
 
 ### Revenue Streams
 
@@ -114,35 +210,11 @@ python3 core/capability_sync.py
 
 **Target:** $10K MRR → $100K MRR → $1M MRR
 
-### Architecture
+---
 
-```
-332 Systems
-    ↓
-Unprecedented Capabilities Registry (10 capabilities)
-    ↓
-Capability Synchronization Engine
-    ↓
-Synchronic Bridge (1Hz heartbeat)
-    ↓
-Quantum Resonator (coherence monitoring)
-    ↓
-Prosperity Flow Engine (money distribution)
-    ↓
-Mastery: Revenue + Joy + Harmony
-```
+## Built By
 
-### Capability Synchronization Flow
-
-```
-[Discovery] → [Dependency Resolution] → [Sequential Activation] → [Verification] → [Monitoring]
-     ↓               ↓                          ↓                      ↓               ↓
-10 Capabilities  Topological Sort    Harmony-aligned Launch   Health Checks   Continuous Sync
-```
-
-### Built By
-
-Garrett Carrol  
+Garrett Carroll  
 Founder, Zero-Human Enterprise  
 [GitHub](https://github.com/Garrettc123) | 101 Repositories | AI Enterprise Systems
 
