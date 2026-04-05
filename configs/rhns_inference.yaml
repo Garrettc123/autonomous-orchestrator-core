@@ -1,0 +1,108 @@
+# RHNS (Remote/Hybrid Node Services) — Local Inference Configuration
+# Defines on-device inference endpoints for edge nodes in the orchestrator mesh.
+#
+# This config prepares the automation-layer for first live inference
+# on a Pixel 10 device running Ollama. The endpoint is NOT assumed to be
+# live yet — activation is gated by health-check validation at runtime.
+
+rhns:
+  version: "0.1.0"
+  description: "On-device inference layer for edge nodes"
+
+# ---------------------------------------------------------------------------
+# Node definitions
+# ---------------------------------------------------------------------------
+nodes:
+  pixel_10:
+    description: "Pixel 10 — first RHNS edge inference node"
+    hardware:
+      soc: "Google Tensor G5"
+      ram_gb: 12
+      storage_class: "UFS 4.0"
+    runtime:
+      engine: "ollama"
+      # Ollama API root on the device (Termux / proot default).
+      # Override with RHNS_PIXEL_ENDPOINT env var at runtime.
+      base_url: "http://pixel10.local:11434"
+    model:
+      name: "qwen2.5:0.5b"
+      # The -instruct variant is recommended for structured/chat tasks.
+      # Switch to it by setting the name to "qwen2.5:0.5b-instruct".
+      alternatives:
+        - "qwen2.5:0.5b-instruct"
+      parameters:
+        context_length: 2048
+        temperature: 0.7
+        top_p: 0.9
+        # num_gpu 0 forces CPU-only; set to 1 if GPU delegate is available.
+        num_gpu: 0
+    activation:
+      # "pending" = configured but not yet validated as live.
+      # Change to "active" once the health check passes on the real device.
+      status: "pending"
+      health_check_path: "/api/tags"
+      health_check_interval_s: 60
+      startup_timeout_s: 30
+      max_retries: 3
+
+# ---------------------------------------------------------------------------
+# Performance & resource notes  (quantitative)
+# ---------------------------------------------------------------------------
+performance:
+  expected_latency:
+    first_token_ms: 800        # Cold-start, CPU-only on Tensor G5
+    tokens_per_second: 8       # Sustained throughput (0.5B q4_0 quant)
+    warm_first_token_ms: 200   # After model is resident in RAM
+  resource_budget:
+    ram_mb: 600                # ~550 MB model + runtime overhead
+    peak_ram_mb: 900           # During prompt ingestion of long context
+    cpu_threads: 4             # Recommended thread count
+    battery_draw_watts: 2.5    # Approximate sustained inference load
+  quantization: "q4_0"        # Default Ollama quant for 0.5B models
+
+# ---------------------------------------------------------------------------
+# Task-fit guidance  (qualitative)
+# ---------------------------------------------------------------------------
+task_fit:
+  recommended:
+    - "Short-form text classification and labeling"
+    - "Structured extraction (JSON/YAML from brief inputs)"
+    - "Quick summarization of <500-token passages"
+    - "Local intent routing — decide which cloud model to escalate to"
+    - "Offline-capable fallback for connectivity gaps"
+  not_recommended:
+    - "Long-form content generation (>512 tokens output)"
+    - "Complex multi-step reasoning or chain-of-thought"
+    - "Code generation beyond short snippets"
+    - "Tasks requiring up-to-date world knowledge"
+  tradeoffs:
+    latency_vs_quality: >
+      The 0.5B model delivers sub-second first-token latency on-device but
+      trades off depth of reasoning.  For latency-critical triage (e.g.,
+      classifying an incoming alert), it is the right tool.  For anything
+      requiring nuanced judgment, escalate to a larger cloud-hosted model.
+    battery_vs_throughput: >
+      Sustained inference draws ~2.5 W on CPU.  Batching multiple short
+      requests is more efficient than a single long generation.  If the
+      device is on battery, prefer bursts of <30 s inference with idle gaps.
+    privacy_vs_capability: >
+      On-device inference keeps data local — no network egress.  This is
+      ideal for PII-sensitive classification or edge environments with
+      unreliable connectivity, even though the model is less capable than
+      cloud alternatives.
+
+# ---------------------------------------------------------------------------
+# Defaults & overrides
+# ---------------------------------------------------------------------------
+defaults:
+  # Environment variable overrides (take precedence over this file)
+  env_overrides:
+    base_url: "RHNS_PIXEL_ENDPOINT"
+    model_name: "RHNS_PIXEL_MODEL"
+    status: "RHNS_PIXEL_STATUS"
+  # Timeout for individual inference requests
+  request_timeout_s: 30
+  # Maximum input tokens (guard against OOM on device)
+  max_input_tokens: 1536
+  # Maximum output tokens
+  max_output_tokens: 512

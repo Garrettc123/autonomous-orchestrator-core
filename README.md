@@ -57,6 +57,7 @@ A core autonomous orchestration engine that unifies 332 enterprise systems with 
 | **Market Intelligence** | `modules/market_intelligence.py` | Live competitor reconnaissance |
 | **Collaboration Mesh** | `integrations/collaboration_mesh.py` | Slack + Linear API integrations |
 | **Prosperity Flow** | `core/prosperity_flow.py` | Revenue distribution engine |
+| **RHNS Local Inference** | `modules/local_inference.py` | On-device Ollama inference client |
 
 ---
 
@@ -168,6 +169,88 @@ Once running, the system emits logs to `logs/collective_bliss.log`:
 2024-01-15 10:00:00 - [HARMONY] - 🎵 Harmony Score: 0.88
 2024-01-15 10:00:00 - [HARMONY] - 🚀 Active Systems: 10
 ```
+
+---
+
+## RHNS: On-Device Local Inference (Pixel 10)
+
+The **RHNS (Remote/Hybrid Node Services)** automation layer enables on-device
+inference through edge nodes running [Ollama](https://ollama.com). The first
+target node is the **Pixel 10** with `qwen2.5:0.5b` as the lightweight default
+model.
+
+### Configuration
+
+All RHNS settings live in `configs/rhns_inference.yaml`. Key environment
+variable overrides:
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `RHNS_PIXEL_ENDPOINT` | Ollama API base URL | `http://pixel10.local:11434` |
+| `RHNS_PIXEL_MODEL` | Model to load | `qwen2.5:0.5b` |
+| `RHNS_PIXEL_STATUS` | Activation gate (`pending` / `active`) | `pending` |
+
+### Quick start (Docker)
+
+```bash
+# Start the Ollama sidecar (pulls the model on first run)
+docker-compose up ollama
+
+# Then activate inference from the orchestrator
+export RHNS_PIXEL_STATUS=active
+export RHNS_PIXEL_ENDPOINT=http://localhost:11434
+```
+
+### Quick start (Pixel 10 / Termux)
+
+```bash
+# On the Pixel device (Termux + proot)
+pkg install ollama
+ollama serve &
+ollama pull qwen2.5:0.5b
+
+# On the orchestrator host
+export RHNS_PIXEL_ENDPOINT=http://<pixel-ip>:11434
+export RHNS_PIXEL_STATUS=active
+```
+
+### Usage in code
+
+```python
+from modules.local_inference import LocalInferenceClient
+
+client = LocalInferenceClient()
+
+# Check if the Pixel node is reachable
+health = client.check_health("pixel_10")
+print(health)  # {"reachable": True, "models": ["qwen2.5:0.5b"], "error": None}
+
+# Run inference (node must be 'active')
+result = client.generate("Classify this alert: disk usage 94%")
+print(result.text, result.latency_ms)
+```
+
+### Performance expectations (Tensor G5, CPU-only, q4_0)
+
+| Metric | Value |
+|--------|-------|
+| First token (cold) | ~800 ms |
+| First token (warm) | ~200 ms |
+| Throughput | ~8 tok/s |
+| RAM footprint | ~600 MB (peak ~900 MB) |
+| Battery draw | ~2.5 W sustained |
+
+### Task-fit guidance
+
+**Good for:** short-form classification, structured extraction, quick
+summarization (<500 tokens), local intent routing, offline fallback.
+
+**Not recommended for:** long-form generation (>512 tokens output), complex
+multi-step reasoning, code generation, tasks needing current world knowledge.
+
+**Key tradeoff:** The 0.5B model gives sub-second latency on-device but trades
+depth of reasoning. Use it for triage and classification; escalate to a cloud
+model for nuanced judgment.
 
 ---
 
