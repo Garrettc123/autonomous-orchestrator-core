@@ -1,0 +1,60 @@
+# Pixel 10 Qwen On-Device Health Check Configuration
+# ---------------------------------------------------
+# Polls the on-device Ollama /api/ps endpoint running on a Pixel 10
+# and reports inference latency + memory stats to Slack.
+#
+# ACTIVATION: This job is gated behind `enabled: false` and an optional
+# `activation_gate.env_flag`. Flip both (or just set the env var) once
+# the Pixel node and Qwen model are confirmed live.
+
+enabled: false  # Flip to true once the Pixel 10 node is live
+
+endpoint:
+  # Base URL of the Ollama instance running on the Pixel 10 device.
+  # Override via PIXEL_OLLAMA_URL env var.
+  base_url: "http://pixel10.local:11434"
+  # Specific endpoint for listing running models + resource usage.
+  ps_path: "/api/ps"
+  # Lightweight generate call used for latency probing.
+  generate_path: "/api/generate"
+
+polling:
+  # Seconds between health-check polls (default: 5 minutes).
+  interval_seconds: 300
+  # HTTP request timeout for each poll attempt.
+  timeout_seconds: 10
+  # Number of consecutive failures before alerting Slack.
+  failure_threshold: 3
+
+activation_gate:
+  # If set, the job only runs when this env var is present and truthy.
+  env_flag: "PIXEL_HEALTHCHECK_ENABLED"
+
+model:
+  # The Qwen model tag expected to be loaded on-device.
+  name: "qwen3:0.6b"
+
+latency_probe:
+  # Short prompt used to measure inference round-trip time.
+  prompt: "ping"
+  # If true, request streaming disabled so we get a single response
+  # with total_duration and eval_duration fields.
+  stream: false
+
+slack:
+  # Slack channel for health-check reports.
+  # Default targets the ops self-DM / autonomous-ops feed.
+  channel: "#autonomous-ops"
+  # Repo secret name for the Slack webhook URL.
+  # For GitHub Actions: store as SLACK_HEALTHCHECK_WEBHOOK_URL.
+  # For app-level use: store as SLACK_BOT_TOKEN (existing).
+  webhook_secret_name: "SLACK_HEALTHCHECK_WEBHOOK_URL"
+  # Post a summary even when the endpoint is healthy (every N polls).
+  # Set to 0 to only post on failures/recoveries.
+  healthy_report_every_n: 12  # ~once per hour at 5-min cadence
+
+thresholds:
+  # Alert if p50 inference latency exceeds this (milliseconds).
+  latency_warn_ms: 5000
+  # Alert if reported model memory exceeds this (MB).
+  memory_warn_mb: 3072
