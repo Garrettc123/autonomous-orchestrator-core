@@ -1,0 +1,32 @@
+# NODE CONFIGURATION TEMPLATE
+# Copy this file and fill in the values to register a new orchestration node.
+# Then append the completed entry to configs/node_registry.yaml under "nodes:".
+
+- node_id: ""              # Required. Unique, lowercase, hyphens allowed.
+  display_name: ""         # Required. Human-readable label.
+  enabled: false           # Required. Keep false until deployment is healthy.
+  transport:
+    protocol: https        # https | grpc | wss
+    host: ""               # Required. FQDN or IP of the node.
+    port: 8443             # Required.
+    path: /v1/orchestrate  # API path for orchestration commands.
+    timeout_seconds: 30
+    retry_attempts: 3
+    retry_backoff_seconds: 2
+  health:
+    endpoint: /healthz
+    interval_seconds: 60
+    timeout_seconds: 10
+    failure_threshold: 3
+    expected_status: 200
+    initial_status: pending  # pending | healthy | degraded | unreachable
+  capabilities: []         # e.g. [edge_inference, sensor_fusion, local_cache]
+  role: ""                 # edge | relay | compute | coordinator
+  priority: 100            # Lower number = higher priority for workload scheduling.
+  tags:                    # Freeform labels for filtering and discovery.
+    device_class: ""
+    region: ""
+  metadata:
+    registered_at: ""      # ISO 8601 timestamp.
+    registered_by: ""
+    notes: ""
