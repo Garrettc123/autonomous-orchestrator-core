@@ -1,8 +1,6 @@
 """Tests for the ProsperityFlow core module."""
 
-import os
 import pytest
-from unittest.mock import patch
 from core.prosperity_flow import ProsperityFlow, WealthSignal
 
 
@@ -39,7 +37,7 @@ class TestProsperityFlowInit:
 
     def test_init_with_stripe_key(self, capsys, monkeypatch):
         monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_fake_key_for_testing")
-        flow = ProsperityFlow()
+        ProsperityFlow()
         out = capsys.readouterr().out
         # Either connected (if stripe installed) or package-not-installed warning
         assert "Stripe" in out or "stripe" in out.lower()

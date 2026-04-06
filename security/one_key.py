@@ -1,7 +1,7 @@
 """
 ONE KEY SECURITY PROTOCOL
 =========================
-The "One Key" system is a military-grade cryptographic hierarchy that derives all 
+The "One Key" system is a military-grade cryptographic hierarchy that derives all
 access credentials for the 332-system ecosystem from a single Master Seed (The "One Key").
 
 Architecture:
@@ -39,16 +39,16 @@ stripe_key = security.get_credential("REVENUE", "STRIPE_SECRET")
 ```
 """
 
-import os
 import hmac
 import hashlib
-from typing import Dict, Optional
+from typing import Dict
+
 
 class OneKeySystem:
     def __init__(self, master_seed: str):
         """
         Initialize the One Key Security System.
-        
+
         Args:
             master_seed: The single 256-bit key that rules them all.
         """

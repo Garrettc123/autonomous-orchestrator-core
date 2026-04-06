@@ -13,7 +13,8 @@ Dependencies:
 
 import requests
 from bs4 import BeautifulSoup
-from typing import List, Dict
+from typing import List
+
 
 class MarketIntelligence:
     def __init__(self):
@@ -24,7 +25,11 @@ class MarketIntelligence:
             "Salesforce": "https://www.salesforce.com/news/press-releases/"
         }
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/91.0.4472.124 Safari/537.36"
+            )
         }
 
     def scan_landscape(self) -> List[str]:
@@ -41,22 +46,22 @@ class MarketIntelligence:
                 response = requests.get(url, headers=self.headers, timeout=10)
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
-                    
+
                     # Generic scraping for article titles
                     # Most blogs use h2 or h3 for titles
                     titles = soup.find_all(['h2', 'h3'], limit=3)
-                    
+
                     found_any = False
                     for title in titles:
                         text = title.get_text().strip()
-                        if len(text) > 10: # Filter out empty/short headers
+                        if len(text) > 10:  # Filter out empty/short headers
                             print(f"   > {competitor} (Active): '{text[:60]}...'")
                             detected_features.append(f"{competitor}: {text}")
                             found_any = True
-                            break # Just get the top one
-                    
+                            break  # Just get the top one
+
                     if not found_any:
-                         print(f"   > {competitor}: Site Active (200 OK), but no headlines parsed.")
+                        print(f"   > {competitor}: Site Active (200 OK), but no headlines parsed.")
                 else:
                     print(f"   > {competitor}: Connection Failed ({response.status_code})")
             except Exception as e:
@@ -73,6 +78,7 @@ class MarketIntelligence:
             if any(keyword in feature.lower() for keyword in threat_keywords):
                 return "HIGH - COMPETITOR ADVANCING"
         return "LOW - MAINTENANCE MODE"
+
 
 if __name__ == "__main__":
     # Test with real network
