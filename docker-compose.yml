@@ -26,3 +26,21 @@ services:
       - ./logs:/app/logs
     restart: unless-stopped
     command: python run_all_systems.py
+
+  # ── RHNS: Local Inference (Ollama) ──────────────────────────────
+  # Optional sidecar for on-device / local inference via Ollama.
+  # Pulls the lightweight qwen2.5:0.5b model on first start.
+  # To enable, set RHNS_PIXEL_STATUS=active in the orchestrator env.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rhns-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: unless-stopped
+    # Pull the default RHNS model after Ollama starts.
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull qwen2.5:0.5b && wait"]
+
+volumes:
+  ollama_models:
