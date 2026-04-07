@@ -1,0 +1,226 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# RHNS Template Archiver Workflow
+# ─────────────────────────────────────────────────────────────────────────────
+# Archives a completed client engagement as a parameterized RHNS template
+# in the Notion "RHNS Template Library" database.
+#
+# Triggers:
+#   1. workflow_dispatch  — manual trigger from GitHub UI with form inputs
+#   2. repository_dispatch — programmatic trigger from other systems via API:
+#        curl -X POST \
+#          -H "Authorization: token $GITHUB_TOKEN" \
+#          -H "Accept: application/vnd.github.v3+json" \
+#          https://api.github.com/repos/Garrettc123/autonomous-orchestrator-core/dispatches \
+#          -d '{"event_type": "archive_engagement", "client_payload": { ... }}'
+#   3. workflow_call — reusable by other workflows in this repo
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: "🧬 RHNS Template Archiver"
+
+on:
+  # ── Manual trigger with form inputs ──
+  workflow_dispatch:
+    inputs:
+      template_name:
+        description: "Template name (e.g., 'Revenue Leak Audit — GC $2-5M')"
+        required: true
+        type: string
+      vertical:
+        description: "Client vertical"
+        required: true
+        type: choice
+        options:
+          - General Contractor
+          - Utility
+          - Healthcare
+          - Energy
+          - Manufacturing
+          - Engineering Services
+          - Construction
+          - Other
+      revenue_range:
+        description: "Client revenue range"
+        required: true
+        type: choice
+        options:
+          - "$0-1M"
+          - "$1-5M"
+          - "$5-10M"
+          - "$10-50M"
+          - "$50M+"
+      client_type:
+        description: "Client type"
+        required: true
+        type: choice
+        options:
+          - SMB
+          - Mid-Market
+          - Enterprise
+          - Government
+      product_used:
+        description: "Garcar product used"
+        required: true
+        type: choice
+        options:
+          - Starter Audit
+          - MAUT Engine
+          - Revenue Recovery Sprint
+          - AI Growth Engine
+          - Platform License
+      engagement_id:
+        description: "Unique engagement ID (e.g., ENG-2026-001)"
+        required: false
+        type: string
+      tags:
+        description: "Comma-separated tags (e.g., revenue-leak,pricing,automation)"
+        required: false
+        type: string
+      reason:
+        description: "RHNS Reason layer — first-principles analysis"
+        required: true
+        type: string
+      harmony:
+        description: "RHNS Harmony layer — system alignment analysis"
+        required: true
+        type: string
+      navigation:
+        description: "RHNS Navigation layer — execution path"
+        required: true
+        type: string
+      standards:
+        description: "RHNS Standards layer — quality guardrails"
+        required: true
+        type: string
+      outcome_summary:
+        description: "Quantified engagement outcome"
+        required: false
+        type: string
+      parameters_json:
+        description: 'Template parameters as JSON (e.g., {"client_name":"Acme","annual_revenue":"$3.2M"})'
+        required: false
+        type: string
+
+  # ── Programmatic trigger from external systems ──
+  repository_dispatch:
+    types: [archive_engagement]
+
+  # ── Reusable by other workflows ──
+  workflow_call:
+    inputs:
+      engagement_data_json:
+        description: "Full engagement data as JSON string"
+        required: true
+        type: string
+    secrets:
+      NOTION_API_KEY:
+        required: true
+
+jobs:
+  archive:
+    name: "📦 Archive RHNS Template"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ── Build engagement data JSON ──
+      - name: Build engagement data
+        id: build_data
+        run: |
+          # Determine trigger source and build data accordingly
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            # From repository_dispatch — payload comes in client_payload
+            echo "source=repository_dispatch" >> "$GITHUB_OUTPUT"
+            cat << 'PAYLOAD_EOF' > /tmp/engagement.json
+          ${{ toJson(github.event.client_payload) }}
+          PAYLOAD_EOF
+
+          elif [ "${{ github.event_name }}" = "workflow_call" ]; then
+            echo "source=workflow_call" >> "$GITHUB_OUTPUT"
+            cat << 'PAYLOAD_EOF' > /tmp/engagement.json
+          ${{ inputs.engagement_data_json }}
+          PAYLOAD_EOF
+
+          else
+            # From workflow_dispatch — build JSON from individual inputs
+            echo "source=workflow_dispatch" >> "$GITHUB_OUTPUT"
+            python3 -c "
+          import json, sys
+
+          tags_raw = '''${{ inputs.tags }}'''
+          tags = [t.strip() for t in tags_raw.split(',') if t.strip()] if tags_raw else []
+
+          params_raw = '''${{ inputs.parameters_json }}'''
+          try:
+              params = json.loads(params_raw) if params_raw else {}
+          except json.JSONDecodeError:
+              params = {}
+
+          data = {
+              'template_name': '''${{ inputs.template_name }}''',
+              'vertical': '''${{ inputs.vertical }}''',
+              'revenue_range': '''${{ inputs.revenue_range }}''',
+              'client_type': '''${{ inputs.client_type }}''',
+              'product_used': '''${{ inputs.product_used }}''',
+              'engagement_id': '''${{ inputs.engagement_id }}''' or None,
+              'tags': tags,
+              'reason': '''${{ inputs.reason }}''',
+              'harmony': '''${{ inputs.harmony }}''',
+              'navigation': '''${{ inputs.navigation }}''',
+              'standards': '''${{ inputs.standards }}''',
+              'outcome_summary': '''${{ inputs.outcome_summary }}''' or None,
+              'parameters': params,
+              'status': 'Active Template',
+          }
+          # Remove None values
+          data = {k: v for k, v in data.items() if v is not None}
+          with open('/tmp/engagement.json', 'w') as f:
+              json.dump(data, f, indent=2)
+          print(json.dumps(data, indent=2))
+          "
+          fi
+
+      - name: Validate engagement data
+        run: |
+          echo "── Engagement data ──"
+          python3 -c "
+          import json, sys
+          with open('/tmp/engagement.json') as f:
+              data = json.load(f)
+          print(json.dumps(data, indent=2))
+          if 'template_name' not in data:
+              print('ERROR: template_name is required', file=sys.stderr)
+              sys.exit(1)
+          print(f'Template: {data[\"template_name\"]}')
+          print('Validation passed.')
+          "
+
+      # ── Archive to Notion ──
+      - name: Archive RHNS template to Notion
+        id: archive
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+        run: |
+          python3 scripts/archive_rhns_template.py --file /tmp/engagement.json
+
+      # ── Summary ──
+      - name: Generate workflow summary
+        if: always()
+        run: |
+          echo "## 🧬 RHNS Template Archived" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Template | ${{ steps.archive.outputs.template_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Page URL | ${{ steps.archive.outputs.page_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | ${{ steps.build_data.outputs.source }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Template is now available in the [RHNS Template Library](https://www.notion.so/c0d0b2c034314f1f87b1f92ddecb8f8d)." >> $GITHUB_STEP_SUMMARY
