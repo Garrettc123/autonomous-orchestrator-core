@@ -1,0 +1,31 @@
+{
+  "template_name": "Revenue Leak Audit — General Contractor $2-5M DFW",
+  "vertical": "General Contractor",
+  "revenue_range": "$1-5M",
+  "client_type": "SMB",
+  "product_used": "Starter Audit",
+  "status": "Active Template",
+  "engagement_id": "ENG-2026-001",
+  "tags": ["revenue-leak", "pricing", "lead-gen"],
+
+  "reason": "DFW general contractors in the $2-5M range are losing 15-25% of potential revenue through three systematic leaks:\n\n1. Untracked lead sources — 40% of inbound leads arrive via phone with no attribution, making ROI-based marketing decisions impossible.\n\n2. Proposal-to-close gap — average proposal cycle is 14 days, but competitors close in 5-7. The delay costs 30% of qualified leads.\n\n3. Change order underpricing — 65% of change orders are priced at cost-plus with no margin escalation for scope complexity, leaving $50-150K/year on the table.\n\nThe leverage point is the proposal cycle. Compressing it from 14 to 5 days recovers the most revenue with the least operational change.",
+
+  "harmony": "The three leaks are interconnected, not independent:\n\n- Lead attribution feeds proposal prioritization. Without knowing which leads convert at highest rates, the sales process treats all leads equally, extending cycle times for high-value prospects.\n\n- Proposal speed depends on estimating accuracy. Slow proposals stem from manual takeoffs and re-estimation on every job. Templatizing estimates by job type cuts cycle time by 60%.\n\n- Change order pricing connects to the proposal template. If the original scope is clearly bounded with explicit exclusions, change orders are easier to price at premium rates.\n\nThe RHNS Harmony insight: fixing lead attribution alone won't work. The three systems must be aligned simultaneously — attribution → prioritized pipeline → templatized proposals → bounded scopes → premium change orders.",
+
+  "navigation": "Execution path (4-week sprint):\n\nWeek 1: Deploy call tracking with UTM attribution on all marketing channels. Set up CRM pipeline stages matching the contractor's actual sales flow.\n\nWeek 2: Build 5 proposal templates covering 80% of job types (residential remodel, commercial tenant improvement, new construction, additions, exterior). Each template includes explicit scope boundaries and change order pricing tiers.\n\nWeek 3: Implement automated proposal delivery with e-signature. Configure follow-up sequences at 24hr, 72hr, and 7-day intervals.\n\nWeek 4: Deploy change order pricing calculator with complexity multipliers. Train the estimator on the new workflow.\n\nTools: Stripe for payments, HubSpot for CRM, Notion for proposal templates, Garcar MAUT Engine for pricing optimization.",
+
+  "standards": "Quality bars for this engagement:\n\n1. Lead attribution coverage must reach 90%+ within 30 days of deployment. Anything below 80% means the tracking implementation has gaps.\n\n2. Proposal cycle time must drop below 7 days within 60 days. Measure from qualified lead to signed proposal.\n\n3. Change order margin must increase by minimum 15% within 90 days. Track blended margin across all change orders.\n\n4. Template reuse rate must exceed 70%. If the estimator is still writing proposals from scratch, the templates aren't useful enough.\n\nRed flags: If the contractor resists call tracking (\"I know where my leads come from\"), this is a standards violation — gut feel replacing data. Push through it or disengage.",
+
+  "outcome_summary": "Projected: $120-180K annual revenue recovery. Proposal cycle compressed from 14 to 5 days. Change order margins increased 18%. Lead attribution coverage at 94%.",
+
+  "parameters": {
+    "client_name": "{{CLIENT_NAME}}",
+    "annual_revenue": "{{ANNUAL_REVENUE}}",
+    "metro_area": "DFW",
+    "primary_job_types": "{{JOB_TYPES — e.g., residential remodel, commercial TI}}",
+    "current_proposal_cycle_days": "{{CURRENT_CYCLE_DAYS}}",
+    "estimated_revenue_leak_pct": "{{LEAK_PCT — typically 15-25%}}",
+    "crm_tool": "{{CRM — default HubSpot}}",
+    "num_estimators": "{{NUM_ESTIMATORS}}"
+  }
+}
