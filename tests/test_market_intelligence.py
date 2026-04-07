@@ -1,6 +1,5 @@
 """Tests for the MarketIntelligence module."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 from modules.market_intelligence import MarketIntelligence
 

@@ -9,10 +9,10 @@ Requires valid tokens in the One Key system to function.
 """
 
 import requests
-import json
 import os
-from typing import Dict, Any, Optional
+from typing import Optional
 from security.one_key import OneKeySystem
+
 
 class CollaborationMesh:
     def __init__(self, security: OneKeySystem):
@@ -26,21 +26,21 @@ class CollaborationMesh:
         Sends a REAL message to Slack.
         """
         if not self.slack_token or len(self.slack_token) < 20:
-            return # Silent fail if no key
+            return  # Silent fail if no key
 
         url = "https://slack.com/api/chat.postMessage"
         headers = {"Authorization": f"Bearer {self.slack_token}", "Content-Type": "application/json"}
-        payload = {"channel": "#autonomous-ops", "text": f"{'🟢' if level=='info' else '🔴'} {message}"}
-        
+        payload = {"channel": "#autonomous-ops", "text": f"{'🟢' if level == 'info' else '🔴'} {message}"}
+
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=5)
             if not resp.json().get("ok"):
                 # Print error but don't crash loop
                 err = resp.json().get('error')
-                if err != "missing_scope": # Ignore common scope error for now
-                     print(f"❌ SLACK ERROR: {err}")
+                if err != "missing_scope":  # Ignore common scope error for now
+                    print(f"❌ SLACK ERROR: {err}")
             else:
-                print(f"✅ SLACK: Message delivered.")
+                print("✅ SLACK: Message delivered.")
         except Exception:
             pass
 
@@ -66,8 +66,8 @@ class CollaborationMesh:
         Creates a REAL ticket in Linear.
         """
         if not self.linear_key or len(self.linear_key) < 20:
-             print("⚠️  LINEAR: API Key invalid/missing. Task skipped.")
-             return "skipped"
+            print("⚠️  LINEAR: API Key invalid/missing. Task skipped.")
+            return "skipped"
 
         # 1. Resolve Team ID dynamically
         team_id = self._get_linear_team_id()
@@ -77,7 +77,7 @@ class CollaborationMesh:
 
         url = "https://api.linear.app/graphql"
         headers = {"Authorization": self.linear_key, "Content-Type": "application/json"}
-        
+
         # 2. Create Issue using valid Team ID
         query = """
         mutation IssueCreate($title: String!, $description: String!, $priority: Int!, $teamId: String!) {
@@ -92,18 +92,18 @@ class CollaborationMesh:
         }
         """
         variables = {
-            "title": title, 
-            "description": description, 
+            "title": title,
+            "description": description,
             "priority": priority,
-            "teamId": team_id 
+            "teamId": team_id
         }
-        
+
         try:
             resp = requests.post(url, headers=headers, json={"query": query, "variables": variables})
             if "errors" in resp.json():
                 print(f"❌ LINEAR ERROR: {resp.json()['errors'][0]['message']}")
                 return "error"
-            
+
             issue_id = resp.json()['data']['issueCreate']['issue']['identifier']
             print(f"✅ LINEAR: Ticket created ({issue_id})")
             return issue_id

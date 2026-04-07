@@ -8,14 +8,15 @@ Run: python3 setup.py
 import os
 import sys
 import subprocess
-import venv
+
 
 def run_command(cmd):
     try:
         subprocess.check_call(cmd, shell=True)
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         print(f"❌ Error running: {cmd}")
         sys.exit(1)
+
 
 def main():
     print("🛠️  AUTONOMOUS SETUP (PYTHON FALLBACK)")
@@ -50,6 +51,7 @@ def main():
     env = os.environ.copy()
     env["COMMANDER_ONE_KEY"] = key
     subprocess.call([sys.executable, "orchestrator.py"], env=env)
+
 
 if __name__ == "__main__":
     main()
