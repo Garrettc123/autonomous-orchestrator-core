@@ -1,4 +1,4 @@
-requests==2.33.0
+requests==2.33.1
 beautifulsoup4==4.14.3
 types-requests==2.33.0.20260327
 stripe==15.0.1
