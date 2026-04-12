@@ -212,19 +212,8 @@ class DAGOrchestrator:
         node.end_time = time.time()
         logger.error(f"💀 [{node.node_id}] {node.name} — FAILED: {node.error}")
 
-    async def run(self, context: dict = None) -> OrchestrationResult:
-        """
-        Execute the full DAG.
-        Runs nodes layer by layer; within each layer, nodes run in parallel.
-        """
-        run_id = f"dag_{int(time.time())}"
-        started_at = datetime.now(timezone.utc).isoformat()
-        context = context or {}
-        self._semaphore = asyncio.Semaphore(self.max_parallelism)
-
-        logger.info(f"🚀 DAG Orchestration [{run_id}] — {len(self.nodes)} nodes")
-
-        # Reset all node states
+    def _reset_nodes(self) -> None:
+        """Reset all node runtime state before a run."""
         for node in self.nodes.values():
             node.status = NodeStatus.PENDING
             node.result = {}
@@ -233,89 +222,50 @@ class DAGOrchestrator:
             node.end_time = None
             node.retry_count = 0
 
-        # Build and validate DAG
-        try:
-            deps = self._build_dependency_edges()
-            layers = self._topological_sort(deps)
-        except ValueError as e:
-            return OrchestrationResult(
-                run_id=run_id,
-                started_at=started_at,
-                completed_at=datetime.now(timezone.utc).isoformat(),
-                total_nodes=len(self.nodes),
-                succeeded=0,
-                failed=0,
-                skipped=len(self.nodes),
-                total_duration_ms=0,
-                halted_early=True,
-                halt_reason=str(e),
-            )
+    def _available_caps(self) -> set:
+        """Return the set of capabilities provided by all successful nodes so far."""
+        caps: set = set()
+        for n in self.nodes.values():
+            if n.status == NodeStatus.SUCCESS:
+                caps.update(n.provides)
+        return caps
 
-        halted = False
-        halt_reason = ""
-        wall_start = time.time()
+    def _filter_layer(self, layer_nodes: list, available_caps: set) -> list:
+        """Skip nodes whose upstream capability requirements aren't met; return runnable nodes."""
+        runnable = []
+        for node in layer_nodes:
+            missing = [cap for cap in node.requires if cap not in available_caps]
+            if missing and node.requires:
+                node.status = NodeStatus.SKIPPED
+                node.error = f"Skipped: upstream provider failed for caps {missing}"
+                logger.warning(f"⏭ [{node.node_id}] Skipped — missing upstream caps: {missing}")
+            else:
+                runnable.append(node)
+        return runnable
 
-        for layer_idx, layer in enumerate(layers):
-            if halted:
-                # Skip remaining layers
-                for node_id in layer:
-                    self.nodes[node_id].status = NodeStatus.SKIPPED
-                continue
+    def _check_halt(self, layer_nodes: list) -> str:
+        """Return a halt reason if any critical node failed, else empty string."""
+        for node in layer_nodes:
+            if node.status == NodeStatus.FAILED and node.critical:
+                reason = f"Critical node [{node.node_id}] failed: {node.error}"
+                logger.error(f"🛑 HALT: {reason}")
+                return reason
+        return ""
 
-            # Check if any dependency in this layer's nodes failed
-            layer_nodes = [self.nodes[nid] for nid in layer]
+    def _update_context(self, layer_nodes: list, context: dict) -> None:
+        """Merge successful node results into the shared context."""
+        for node in layer_nodes:
+            if node.status == NodeStatus.SUCCESS:
+                context[f"result_{node.node_id}"] = node.result
 
-            # Sort within layer by priority
-            layer_nodes.sort(key=lambda n: n.priority)
-
-            logger.info(f"⚡ Layer {layer_idx + 1}/{len(layers)}: {[n.node_id for n in layer_nodes]}")
-
-            # Identify which capabilities are available from successful upstream nodes
-            available_caps = set()
-            for n in self.nodes.values():
-                if n.status == NodeStatus.SUCCESS:
-                    available_caps.update(n.provides)
-
-            # Skip nodes whose required capabilities weren't satisfied
-            nodes_to_run = []
-            for node in layer_nodes:
-                missing = [cap for cap in node.requires if cap not in available_caps]
-                if missing and node.requires:
-                    node.status = NodeStatus.SKIPPED
-                    node.error = f"Skipped: upstream provider failed for caps {missing}"
-                    logger.warning(
-                        f"⏭ [{node.node_id}] Skipped — missing upstream caps: {missing}"
-                    )
-                else:
-                    nodes_to_run.append(node)
-
-            # Execute all eligible nodes in this layer concurrently
-            tasks = [
-                self._execute_node(node, context)
-                for node in nodes_to_run
-            ]
-            await asyncio.gather(*tasks, return_exceptions=True)
-
-            # Check for critical failures
-            for node in layer_nodes:
-                if node.status == NodeStatus.FAILED and node.critical:
-                    halted = True
-                    halt_reason = f"Critical node [{node.node_id}] failed: {node.error}"
-                    logger.error(f"🛑 HALT: {halt_reason}")
-                    break
-
-            # Update context with results from this layer
-            for node in layer_nodes:
-                if node.status == NodeStatus.SUCCESS:
-                    context[f"result_{node.node_id}"] = node.result
-
-        wall_end = time.time()
-
-        # Compile results
+    def _compile_result(
+        self, run_id: str, started_at: str,
+        wall_start: float, halted: bool, halt_reason: str,
+    ) -> OrchestrationResult:
+        """Build the final OrchestrationResult from node states."""
         succeeded = sum(1 for n in self.nodes.values() if n.status == NodeStatus.SUCCESS)
         failed = sum(1 for n in self.nodes.values() if n.status == NodeStatus.FAILED)
         skipped = sum(1 for n in self.nodes.values() if n.status == NodeStatus.SKIPPED)
-
         return OrchestrationResult(
             run_id=run_id,
             started_at=started_at,
@@ -324,7 +274,7 @@ class DAGOrchestrator:
             succeeded=succeeded,
             failed=failed,
             skipped=skipped,
-            total_duration_ms=(wall_end - wall_start) * 1000,
+            total_duration_ms=(time.time() - wall_start) * 1000,
             node_results={
                 nid: {
                     "status": n.status.value,
@@ -338,6 +288,59 @@ class DAGOrchestrator:
             halted_early=halted,
             halt_reason=halt_reason,
         )
+
+    async def run(self, context: dict = None) -> OrchestrationResult:
+        """
+        Execute the full DAG.
+        Runs nodes layer by layer; within each layer, nodes run in parallel.
+        """
+        run_id = f"dag_{int(time.time())}"
+        started_at = datetime.now(timezone.utc).isoformat()
+        context = context or {}
+        self._semaphore = asyncio.Semaphore(self.max_parallelism)
+        logger.info(f"🚀 DAG Orchestration [{run_id}] — {len(self.nodes)} nodes")
+
+        self._reset_nodes()
+
+        try:
+            deps = self._build_dependency_edges()
+            layers = self._topological_sort(deps)
+        except ValueError as e:
+            return OrchestrationResult(
+                run_id=run_id, started_at=started_at,
+                completed_at=datetime.now(timezone.utc).isoformat(),
+                total_nodes=len(self.nodes), succeeded=0, failed=0,
+                skipped=len(self.nodes), total_duration_ms=0,
+                halted_early=True, halt_reason=str(e),
+            )
+
+        halted = False
+        halt_reason = ""
+        wall_start = time.time()
+
+        for layer_idx, layer in enumerate(layers):
+            if halted:
+                for node_id in layer:
+                    self.nodes[node_id].status = NodeStatus.SKIPPED
+                continue
+
+            layer_nodes = sorted(
+                [self.nodes[nid] for nid in layer], key=lambda n: n.priority
+            )
+            logger.info(f"⚡ Layer {layer_idx + 1}/{len(layers)}: {[n.node_id for n in layer_nodes]}")
+
+            nodes_to_run = self._filter_layer(layer_nodes, self._available_caps())
+            await asyncio.gather(
+                *[self._execute_node(n, context) for n in nodes_to_run],
+                return_exceptions=True,
+            )
+
+            halt_reason = self._check_halt(layer_nodes)
+            if halt_reason:
+                halted = True
+            self._update_context(layer_nodes, context)
+
+        return self._compile_result(run_id, started_at, wall_start, halted, halt_reason)
 
     def visualize(self) -> str:
         """Return a text representation of the DAG."""
