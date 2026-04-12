@@ -14,6 +14,6 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install pytest pytest-cov pytest-asyncio requests pyyaml
-      - run: pytest tests/test_inference_router.py -v --cov=modules/inference_router --cov-report=term-missing --cov-fail-under=80
+      - run: pytest tests/test_inference_router.py -v --override-ini="addopts=" --cov=modules.inference_router --cov-report=term-missing --cov-fail-under=85
       - name: Summary
         run: echo "## RHNS Inference Router CI ✅" >> $GITHUB_STEP_SUMMARY
