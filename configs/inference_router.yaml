@@ -1,0 +1,45 @@
+# RHNS Inference Router Configuration
+# Two-tier inference: LOCAL (Qwen2.5 on-device) + CLOUD (o3/GPT-4o)
+
+router:
+  version: "1.0.0"
+  description: "Dual-tier inference routing for RHNS pipeline"
+
+tiers:
+  local:
+    engine: ollama
+    model: qwen2.5:0.5b
+    endpoint_env: RHNS_PIXEL_ENDPOINT
+    default_endpoint: "http://localhost:11434"
+    timeout_s: 30
+    use_when:
+      - urgency: [low, medium]
+      - signal_types: [heartbeat, monitoring, metric_sample]
+    
+  cloud:
+    standard:
+      model: gpt-4o-mini
+      use_when:
+        - urgency: [immediate, high]
+        - value_usd_below: 100
+    high_stakes:
+      model: o3
+      reasoning_effort: high
+      use_when:
+        - urgency: immediate
+        - value_usd_above: 100
+        - signal_types: [payment_failed, churn_risk, security_breach]
+
+routing_rules:
+  symbolic_passthrough:
+    signal_types: [heartbeat, health_check, metric_sample]
+    action: skip_llm
+  
+  cloud_forced:
+    signal_types: [payment_failed, churn_risk, security_breach, deploy_failure, revenue_anomaly]
+    action: route_to_cloud
+
+fallback:
+  local_unavailable: route_to_cloud
+  cloud_unavailable: route_to_local
+  both_unavailable: log_and_skip

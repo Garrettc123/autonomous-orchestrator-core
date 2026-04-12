@@ -1,0 +1,19 @@
+name: RHNS Inference Router — CI
+
+on:
+  push:
+    paths: ["modules/inference_router.py", "tests/test_inference_router.py"]
+  workflow_dispatch:
+
+jobs:
+  test-inference-router:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pytest requests pyyaml
+      - run: pytest tests/test_inference_router.py -v
+      - name: Summary
+        run: echo "## RHNS Inference Router CI ✅" >> $GITHUB_STEP_SUMMARY
