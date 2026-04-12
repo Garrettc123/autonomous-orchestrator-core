@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install pytest pytest-cov pytest-asyncio
+      - run: pip install pytest pytest-cov pytest-asyncio requests
       - run: pytest tests/test_formal_verifier.py -v --override-ini="addopts=" --cov=core.formal_verifier --cov-report=term-missing --cov-fail-under=85
       - name: Summary
         run: echo "## RHNS Formal Verifier CI ✅ Lean4-inspired proof engine tests passed" >> $GITHUB_STEP_SUMMARY
