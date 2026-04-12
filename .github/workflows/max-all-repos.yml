@@ -1,9 +1,12 @@
 name: Max Out All Repos
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why are you running this?'
+        required: false
+        default: 'Manual repo optimization'
 
 jobs:
   max-repos:
@@ -11,7 +14,7 @@ jobs:
     timeout-minutes: 360
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -23,21 +26,18 @@ jobs:
 
       - name: Run max-out script
         env:
-          GH_PAT: ${{ secrets.GH_PAT || github.token }}
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
-          if [ -z "$GH_PAT" ] || [ "$GH_PAT" = "null" ]; then
-            echo "⚠️ GH_PAT secret not configured — using GITHUB_TOKEN (limited scope)"
-            export GH_PAT="${{ github.token }}"
+          if [ -z "$GH_PAT" ]; then
+            echo "ERROR: GH_PAT secret is not configured."
+            echo "Add it at: https://github.com/Garrettc123/autonomous-orchestrator-core/settings/secrets/actions"
+            exit 1
           fi
           cat << 'PYEOF' > max_repos.py
           import os, time, requests
           from github import Github, GithubException
 
           PAT = os.environ['GH_PAT']
-          if not PAT:
-              print("ERROR: No token available. Set GH_PAT secret with a personal access token.")
-              exit(1)
-
           g = Github(PAT)
           user = g.get_user()
           username = user.login
