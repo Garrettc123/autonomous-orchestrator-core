@@ -1,0 +1,19 @@
+name: RHNS DAG Orchestrator — CI
+
+on:
+  push:
+    paths: ["core/**", "tests/test_dag_orchestrator.py"]
+  workflow_dispatch:
+
+jobs:
+  test-dag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pytest requests
+      - run: pytest tests/test_dag_orchestrator.py -v
+      - name: Summary
+        run: echo "## RHNS DAG Orchestrator CI ✅" >> $GITHUB_STEP_SUMMARY
