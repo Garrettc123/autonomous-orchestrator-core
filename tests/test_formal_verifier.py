@@ -5,18 +5,17 @@ Tests for RHNS Formal Verification Layer
 certificate structure, and counterexample generation.
 """
 
+from core.formal_verifier import (  # noqa: E402
+    FormalVerifier,
+    Domain,
+    ProofStatus,
+)
 import sys
 import os
 import pytest
 
 # Allow direct import without package install
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-from core.formal_verifier import (
-    FormalVerifier,
-    Domain,
-    ProofStatus,
-)
 
 
 @pytest.fixture

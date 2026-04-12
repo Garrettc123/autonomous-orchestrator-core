@@ -12,7 +12,6 @@ Tests for RHNS DAG Orchestrator
 """
 
 import asyncio
-import time
 import pytest
 from core.dag_orchestrator import DAGOrchestrator, AgentNode, NodeStatus
 
@@ -114,7 +113,7 @@ async def test_critical_node_halts_dag():
     dag = DAGOrchestrator()
     # Layer 0: critical node that fails
     dag.register(make_node("critical_node", provides=["cap_c"], critical=True,
-                            execute_fn=fail_fn, max_retries=0))
+                           execute_fn=fail_fn, max_retries=0))
     # Layer 1 (independent, no deps): should be skipped due to halt
     dag.register(make_node("later_node", provides=[], requires=["cap_c"], execute_fn=ok_fn))
 

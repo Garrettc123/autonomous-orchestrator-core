@@ -14,7 +14,7 @@ This implements the RHNS Standards principle at its highest level.
 
 import os
 from dataclasses import dataclass
-from core.formal_verifier import FormalVerifier, Domain, ProofStatus
+from core.formal_verifier import FormalVerifier, Domain
 
 
 @dataclass

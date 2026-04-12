@@ -25,7 +25,6 @@ and LOOP iterative LLM-planner feedback.
 
 import os
 import time
-import json
 import requests
 from dataclasses import dataclass
 from typing import Optional
@@ -50,7 +49,7 @@ class InferenceRequest:
     metadata: dict = None
 
 
-@dataclass  
+@dataclass
 class InferenceResponse:
     text: str
     tier_used: InferenceTier
@@ -64,7 +63,7 @@ class InferenceResponse:
 class InferenceRouter:
     """
     Routes RHNS inference requests to the optimal model tier.
-    
+
     Decision logic:
     1. If the signal requires no language model → SYMBOLIC (immediate)
     2. If urgency is immediate/high AND value > $100 → CLOUD (o3/GPT-4o)
@@ -73,23 +72,23 @@ class InferenceRouter:
     5. If LOCAL is unavailable → fall back to CLOUD
     6. If CLOUD is unavailable (no API key) → fall back to LOCAL or log + skip
     """
-    
+
     # Signal types that always route to CLOUD regardless of urgency
     CLOUD_FORCED_SIGNALS = {
         "payment_failed",
-        "churn_risk", 
+        "churn_risk",
         "security_breach",
         "deploy_failure",
         "revenue_anomaly",
     }
-    
+
     # Signal types that always route to SYMBOLIC (no LLM needed)
     SYMBOLIC_SIGNALS = {
         "heartbeat",
         "health_check",
         "metric_sample",
     }
-    
+
     def __init__(
         self,
         ollama_base_url: str = None,
@@ -107,10 +106,10 @@ class InferenceRouter:
         self.cloud_model = cloud_model
         self.cloud_model_high = cloud_model_high_stakes
         self.threshold_usd = high_stakes_threshold_usd
-        
+
         self._tier1_available: Optional[bool] = None  # cached health check
         self._tier2_available: Optional[bool] = None
-    
+
     def _thinking_effort(self, urgency: str, value_usd: float) -> str:
         """Map urgency + value to o3 reasoning effort level."""
         if urgency == "immediate" and value_usd >= self.threshold_usd:
@@ -119,20 +118,20 @@ class InferenceRouter:
             return "medium"
         else:
             return "low"
-    
+
     def _select_tier(self, request: InferenceRequest) -> InferenceTier:
         """Determine which inference tier to use."""
         if request.signal_type in self.SYMBOLIC_SIGNALS:
             return InferenceTier.SYMBOLIC
-        
+
         if request.signal_type in self.CLOUD_FORCED_SIGNALS:
             return InferenceTier.CLOUD
-        
+
         if request.urgency in ("immediate", "high"):
             return InferenceTier.CLOUD
-        
+
         return InferenceTier.LOCAL
-    
+
     def _probe_local(self) -> bool:
         """Check if local Ollama endpoint is reachable."""
         if self._tier1_available is not None:
@@ -146,11 +145,11 @@ class InferenceRouter:
         except Exception:
             self._tier1_available = False
         return self._tier1_available
-    
+
     def _call_local(self, request: InferenceRequest) -> InferenceResponse:
         """Call Qwen2.5 via Ollama."""
         start = time.time()
-        
+
         if not self._probe_local():
             return InferenceResponse(
                 text="",
@@ -161,7 +160,7 @@ class InferenceRouter:
                 cost_estimate_usd=0.0,
                 error="Local Ollama endpoint unavailable",
             )
-        
+
         payload = {
             "model": self.ollama_model,
             "prompt": request.prompt,
@@ -174,7 +173,7 @@ class InferenceRouter:
         }
         if request.system_prompt:
             payload["system"] = request.system_prompt
-        
+
         try:
             resp = requests.post(
                 f"{self.ollama_url}/api/generate",
@@ -203,11 +202,11 @@ class InferenceRouter:
                 cost_estimate_usd=0.0,
                 error=str(e),
             )
-    
+
     def _call_cloud(self, request: InferenceRequest) -> InferenceResponse:
         """Call o3 or GPT-4o via OpenAI API with thinking budget."""
         start = time.time()
-        
+
         if not self.openai_key:
             return InferenceResponse(
                 text="",
@@ -218,31 +217,31 @@ class InferenceRouter:
                 cost_estimate_usd=0.0,
                 error="OPENAI_API_KEY not configured",
             )
-        
+
         effort = self._thinking_effort(request.urgency, request.value_usd)
-        
+
         # Use o3 for high-stakes, gpt-4o-mini for everything else
         model = (
             self.cloud_model_high
             if request.value_usd >= self.threshold_usd and request.urgency == "immediate"
             else self.cloud_model
         )
-        
+
         messages = []
         if request.system_prompt:
             messages.append({"role": "system", "content": request.system_prompt})
         messages.append({"role": "user", "content": request.prompt})
-        
+
         payload = {
             "model": model,
             "messages": messages,
             "max_completion_tokens": request.max_tokens,
         }
-        
+
         # o3 supports reasoning_effort parameter
         if model in ("o3", "o3-mini", "o1"):
             payload["reasoning_effort"] = effort
-        
+
         try:
             resp = requests.post(
                 "https://api.openai.com/v1/chat/completions",
@@ -256,15 +255,15 @@ class InferenceRouter:
             resp.raise_for_status()
             data = resp.json()
             elapsed = (time.time() - start) * 1000
-            
+
             content = data["choices"][0]["message"]["content"]
             usage = data.get("usage", {})
             total_tokens = usage.get("total_tokens", 0)
-            
+
             # Rough cost estimate
             cost_per_1k = 0.002 if "mini" in model else 0.015
             cost = (total_tokens / 1000) * cost_per_1k
-            
+
             return InferenceResponse(
                 text=content,
                 tier_used=InferenceTier.CLOUD,
@@ -284,7 +283,7 @@ class InferenceRouter:
                 cost_estimate_usd=0.0,
                 error=str(e),
             )
-    
+
     def _call_symbolic(self, request: InferenceRequest) -> InferenceResponse:
         """Handle purely symbolic signals without any LLM call."""
         start = time.time()
@@ -298,24 +297,24 @@ class InferenceRouter:
             tokens_used=0,
             cost_estimate_usd=0.0,
         )
-    
+
     def route(self, request: InferenceRequest) -> InferenceResponse:
         """
         Route the inference request to the optimal tier.
         Falls back gracefully if a tier is unavailable.
         """
         tier = self._select_tier(request)
-        
+
         if tier == InferenceTier.SYMBOLIC:
             return self._call_symbolic(request)
-        
+
         if tier == InferenceTier.LOCAL:
             resp = self._call_local(request)
             if resp.error:
                 # Fall back to cloud
                 resp = self._call_cloud(request)
             return resp
-        
+
         # CLOUD tier
         resp = self._call_cloud(request)
         if resp.error and "API_KEY" not in (resp.error or ""):
@@ -324,7 +323,7 @@ class InferenceRouter:
             if not fallback.error:
                 return fallback
         return resp
-    
+
     def tier_stats(self) -> dict:
         """Return routing tier availability summary."""
         return {

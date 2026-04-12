@@ -28,12 +28,10 @@ It is not a Lean4 interpreter but implements the same logical structure:
 
 import json
 import hashlib
-import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 
 class Domain(Enum):
@@ -58,16 +56,16 @@ class Proposition:
     """A formal statement about an action to be verified."""
     action: str
     domain: Domain
-    
+
     # Preconditions that must hold for the action to be safe
     preconditions: list[str] = field(default_factory=list)
-    
+
     # Postconditions the action claims to establish
     postconditions: list[str] = field(default_factory=list)
-    
+
     # Context facts about the current system state
     state_facts: dict = field(default_factory=dict)
-    
+
     def to_statement(self) -> str:
         """Format as a logical statement for proof search."""
         precs = " ∧ ".join(self.preconditions) if self.preconditions else "⊤"
@@ -98,10 +96,10 @@ class ProofCertificate:
     counterexample: str = ""
     verified_at: str = ""
     verifier_version: str = "RHNS-FV-1.0"
-    
+
     def is_valid(self) -> bool:
         return self.status in (ProofStatus.PROVED, ProofStatus.SKIPPED)
-    
+
     def to_dict(self) -> dict:
         return {
             "cert_id": self.cert_id,
@@ -125,7 +123,7 @@ class AxiomLibrary:
     Axioms for each domain.
     An axiom is a rule that holds unconditionally given a condition.
     """
-    
+
     @staticmethod
     def money_axioms() -> list[dict]:
         return [
@@ -148,7 +146,7 @@ class AxiomLibrary:
                 "desc": "Money actions require confidence >= 0.75",
             },
         ]
-    
+
     @staticmethod
     def security_axioms() -> list[dict]:
         return [
@@ -165,7 +163,7 @@ class AxiomLibrary:
                 "desc": "Actions must not escalate privileges without explicit authorization",
             },
         ]
-    
+
     @staticmethod
     def deploy_axioms() -> list[dict]:
         return [
@@ -182,7 +180,7 @@ class AxiomLibrary:
                 "desc": "Deployments must not occur during active incidents",
             },
         ]
-    
+
     @staticmethod
     def data_axioms() -> list[dict]:
         return [
@@ -202,20 +200,20 @@ class InferenceRules:
     Inference rules: if all premises hold, the conclusion holds.
     Used to chain axiom conclusions into the final proof goal.
     """
-    
+
     MONEY_PROOF_GOAL = "money_action_verified"
     SECURITY_PROOF_GOAL = "security_action_verified"
     DEPLOY_PROOF_GOAL = "deploy_action_verified"
     DATA_PROOF_GOAL = "data_action_verified"
-    
+
     MONEY_RULES = [
         {
             "name": "MONEY_SAFE",
-            "premises": ["payment_execution_permitted", "value_constraint_satisfied", "confidence_constraint_satisfied"],
+            "premises": ["payment_execution_permitted", "value_constraint_satisfied", "confidence_constraint_satisfied"],  # noqa: E501
             "conclusion": MONEY_PROOF_GOAL,
         },
     ]
-    
+
     SECURITY_RULES = [
         {
             "name": "SECURITY_CLEAR",
@@ -223,7 +221,7 @@ class InferenceRules:
             "conclusion": SECURITY_PROOF_GOAL,
         },
     ]
-    
+
     DEPLOY_RULES = [
         {
             "name": "DEPLOY_SAFE",
@@ -231,7 +229,7 @@ class InferenceRules:
             "conclusion": DEPLOY_PROOF_GOAL,
         },
     ]
-    
+
     DATA_RULES = [
         {
             "name": "DATA_SAFE",
@@ -239,7 +237,7 @@ class InferenceRules:
             "conclusion": DATA_PROOF_GOAL,
         },
     ]
-    
+
     @classmethod
     def rules_for_domain(cls, domain: Domain) -> list[dict]:
         mapping = {
@@ -249,7 +247,7 @@ class InferenceRules:
             Domain.DATA: cls.DATA_RULES,
         }
         return mapping.get(domain, [])
-    
+
     @classmethod
     def goal_for_domain(cls, domain: Domain) -> str:
         mapping = {
@@ -266,11 +264,11 @@ class InferenceRules:
 class FormalVerifier:
     """
     RHNS Formal Verification Engine.
-    
+
     Proves or disproves propositions about agent actions using
     backward chaining from the proof goal through inference rules
     to axioms, evaluated against system state facts.
-    
+
     Architecture mirrors Lean4 / AlphaProof:
     - Proposition: what must be proved
     - Axioms: base truths about system state
@@ -278,21 +276,21 @@ class FormalVerifier:
     - Proof search: backward chaining
     - Certificate: the produced proof (or counterexample)
     """
-    
+
     # Action keywords that indicate each domain
     DOMAIN_KEYWORDS = {
-        Domain.MONEY: ["STRIPE", "PAYMENT", "CHARGE", "REFUND", "INVOICE", "SUBSCRIPTION", "BILLING", "RETRY_PAYMENT", "REVENUE"],
+        Domain.MONEY: ["STRIPE", "PAYMENT", "CHARGE", "REFUND", "INVOICE", "SUBSCRIPTION", "BILLING", "RETRY_PAYMENT", "REVENUE"],  # noqa: E501
         Domain.SECURITY: ["TOKEN", "SECRET", "CREDENTIAL", "ROTATE", "REVOKE", "AUTH", "PERMISSION", "ACCESS"],
         Domain.DEPLOY: ["DEPLOY", "RELEASE", "ROLLOUT", "PUBLISH", "SHIP", "PRODUCTION"],
         Domain.DATA: ["DELETE", "MIGRATE", "TRUNCATE", "BACKUP_RESTORE", "SCHEMA_CHANGE"],
     }
-    
+
     def __init__(self, cert_log_path: str = "rhns/proof_certificates.jsonl"):
         self.cert_log = Path(cert_log_path)
         self.cert_log.parent.mkdir(parents=True, exist_ok=True)
         self.axioms = AxiomLibrary()
         self.rules = InferenceRules()
-    
+
     def classify_domain(self, action: str) -> Domain:
         """Classify an action into its verification domain."""
         action_upper = action.upper()
@@ -302,7 +300,7 @@ class FormalVerifier:
         if "MONITOR" in action_upper or "LOG" in action_upper:
             return Domain.MONITOR
         return Domain.UNKNOWN
-    
+
     def build_proposition(
         self,
         action: str,
@@ -312,7 +310,7 @@ class FormalVerifier:
         """Build a Proposition from an action and current system state."""
         if domain is None:
             domain = self.classify_domain(action)
-        
+
         # Standard preconditions per domain
         preconditions = {
             Domain.MONEY: ["stripe_key_available", "positive_value", "high_confidence"],
@@ -322,7 +320,7 @@ class FormalVerifier:
             Domain.MONITOR: [],
             Domain.UNKNOWN: [],
         }.get(domain, [])
-        
+
         postconditions = {
             Domain.MONEY: ["payment_processed_safely", "revenue_recorded"],
             Domain.SECURITY: ["credentials_rotated_safely"],
@@ -331,7 +329,7 @@ class FormalVerifier:
             Domain.MONITOR: ["observation_logged"],
             Domain.UNKNOWN: [],
         }.get(domain, [])
-        
+
         return Proposition(
             action=action,
             domain=domain,
@@ -339,7 +337,7 @@ class FormalVerifier:
             postconditions=postconditions,
             state_facts=state_facts,
         )
-    
+
     def _run_axioms(self, domain: Domain, facts: dict) -> tuple[set[str], list[ProofStep]]:
         """
         Evaluate all axioms for the domain against current facts.
@@ -351,14 +349,14 @@ class FormalVerifier:
             Domain.DEPLOY: self.axioms.deploy_axioms,
             Domain.DATA: self.axioms.data_axioms,
         }
-        
+
         axiom_fn = domain_axiom_methods.get(domain)
         if not axiom_fn:
             return set(), []
-        
+
         proved: set[str] = set()
         steps: list[ProofStep] = []
-        
+
         for axiom in axiom_fn():
             holds = axiom["condition"](facts)
             if holds:
@@ -376,9 +374,9 @@ class FormalVerifier:
                     conclusion=f"NOT:{axiom['conclusion']}",
                     justification="Axiom evaluation: condition NOT satisfied",
                 ))
-        
+
         return proved, steps
-    
+
     def _apply_inference_rules(
         self, domain: Domain, proved: set[str], steps: list[ProofStep]
     ) -> tuple[bool, str]:
@@ -388,10 +386,10 @@ class FormalVerifier:
         """
         rules = self.rules.rules_for_domain(domain)
         goal = self.rules.goal_for_domain(domain)
-        
+
         if not goal:
             return True, ""
-        
+
         for rule in rules:
             premises_satisfied = all(p in proved for p in rule["premises"])
             if premises_satisfied:
@@ -410,9 +408,9 @@ class FormalVerifier:
                     f"Fix: ensure {', '.join(missing)} hold before executing this action."
                 )
                 return False, counterexample
-        
+
         return False, f"No inference rule reached the goal '{goal}' for domain {domain.value}"
-    
+
     def verify(
         self,
         action: str,
@@ -421,17 +419,17 @@ class FormalVerifier:
     ) -> ProofCertificate:
         """
         Verify an action against formal proof rules.
-        
+
         Returns a ProofCertificate. Call .is_valid() to check approval.
         """
         now = datetime.now(timezone.utc).isoformat()
         cert_id = hashlib.sha256(f"{action}:{now}".encode()).hexdigest()[:16]
-        
+
         if domain is None:
             domain = self.classify_domain(action)
-        
+
         prop = self.build_proposition(action, state_facts, domain)
-        
+
         # MONITOR and UNKNOWN domains skip formal proof
         if domain in (Domain.MONITOR, Domain.UNKNOWN):
             cert = ProofCertificate(
@@ -449,18 +447,18 @@ class FormalVerifier:
             )
             self._log_certificate(cert)
             return cert
-        
+
         # Run proof search
         all_steps: list[ProofStep] = []
         proved_conclusions, axiom_steps = self._run_axioms(domain, state_facts)
         all_steps.extend(axiom_steps)
-        
+
         goal_proved, counterexample = self._apply_inference_rules(
             domain, proved_conclusions, all_steps
         )
-        
+
         status = ProofStatus.PROVED if goal_proved else ProofStatus.DISPROVED
-        
+
         cert = ProofCertificate(
             cert_id=cert_id,
             proposition=prop.to_statement(),
@@ -472,17 +470,17 @@ class FormalVerifier:
         )
         self._log_certificate(cert)
         return cert
-    
+
     def _log_certificate(self, cert: ProofCertificate):
         """Append proof certificate to the JSONL log."""
         with self.cert_log.open("a") as f:
             f.write(json.dumps(cert.to_dict()) + "\n")
-    
+
     def get_certificate_stats(self) -> dict:
         """Return aggregate proof stats from the certificate log."""
         if not self.cert_log.exists():
             return {"total": 0, "proved": 0, "disproved": 0, "skipped": 0}
-        
+
         stats = {"total": 0, "proved": 0, "disproved": 0, "skipped": 0, "unknown": 0}
         with self.cert_log.open() as f:
             for line in f:

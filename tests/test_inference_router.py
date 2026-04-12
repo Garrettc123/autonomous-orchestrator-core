@@ -3,7 +3,6 @@ Unit tests for RHNS Two-Tier Inference Router.
 All HTTP calls are mocked via unittest.mock.patch.
 """
 
-import json
 import unittest
 from unittest.mock import patch, MagicMock
 

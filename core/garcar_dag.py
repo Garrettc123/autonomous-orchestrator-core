@@ -6,7 +6,7 @@ This replaces run_all_systems.py with a dependency-aware execution graph.
 
 Node categories (matching the 176-repo ecosystem):
   Layer 0 (no deps): Security & Defense, Infrastructure
-  Layer 1 (depends on Layer 0): Market Intelligence, Revenue Monitoring  
+  Layer 1 (depends on Layer 0): Market Intelligence, Revenue Monitoring
   Layer 2 (depends on Layer 1): AI SaaS, Commerce, Content
   Layer 3 (depends on Layer 2): Orchestration, Reporting, Notifications
 """
@@ -46,7 +46,7 @@ async def run_revenue_intelligence(ctx: dict) -> dict:
         return {"status": "skipped", "reason": "GH_PAT not set"}
     try:
         resp = requests.post(
-            "https://api.github.com/repos/Garrettc123/revenue-intelligence-engine/actions/workflows/revenue-intelligence.yml/dispatches",
+            "https://api.github.com/repos/Garrettc123/revenue-intelligence-engine/actions/workflows/revenue-intelligence.yml/dispatches",  # noqa: E501
             headers={"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"},
             json={"ref": "main"},
             timeout=10,
@@ -78,10 +78,10 @@ async def run_slack_broadcast(ctx: dict) -> dict:
     webhook = os.getenv("DEFENDER_SLACK_WEBHOOK", "")
     if not webhook:
         return {"status": "skipped"}
-    
+
     harmony = ctx.get("result_harmony_score", {}).get("harmony_score", 0)
     systems = ctx.get("result_harmony_score", {}).get("systems_online", 0)
-    
+
     msg = f"🌈 *RHNS DAG Cycle Complete* | Harmony: {harmony:.2f} | {systems} systems nominal"
     try:
         requests.post(webhook, json={"text": msg}, timeout=5)
@@ -94,9 +94,9 @@ async def run_slack_broadcast(ctx: dict) -> dict:
 
 def build_garcar_dag() -> DAGOrchestrator:
     """Build and return the fully-wired Garcar Enterprise DAG."""
-    
+
     dag = DAGOrchestrator(max_parallelism=8)
-    
+
     # ── LAYER 0: Security & Infrastructure (no dependencies) ──────────────
     dag.register(AgentNode(
         node_id="defender_os",
@@ -111,7 +111,7 @@ def build_garcar_dag() -> DAGOrchestrator:
         timeout_s=15,
         execute_fn=run_defender_os,
     ))
-    
+
     dag.register(AgentNode(
         node_id="market_intel",
         name="Market Intelligence Scan",
@@ -124,7 +124,7 @@ def build_garcar_dag() -> DAGOrchestrator:
         timeout_s=20,
         execute_fn=run_market_intelligence,
     ))
-    
+
     # ── LAYER 1: Revenue & Intelligence (depends on security baseline) ─────
     dag.register(AgentNode(
         node_id="revenue_intelligence",
@@ -138,7 +138,7 @@ def build_garcar_dag() -> DAGOrchestrator:
         timeout_s=30,
         execute_fn=run_revenue_intelligence,
     ))
-    
+
     # ── LAYER 2: Harmony Scoring (depends on revenue + market signals) ─────
     dag.register(AgentNode(
         node_id="harmony_score",
@@ -152,7 +152,7 @@ def build_garcar_dag() -> DAGOrchestrator:
         timeout_s=5,
         execute_fn=run_harmony_score,
     ))
-    
+
     # ── LAYER 3: Notifications (depends on harmony score) ──────────────────
     dag.register(AgentNode(
         node_id="slack_broadcast",
@@ -166,17 +166,16 @@ def build_garcar_dag() -> DAGOrchestrator:
         timeout_s=8,
         execute_fn=run_slack_broadcast,
     ))
-    
+
     return dag
 
 
 if __name__ == "__main__":
-    import asyncio
     logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(message)s")
-    
+
     dag = build_garcar_dag()
     print(dag.visualize())
-    
+
     result = asyncio.run(dag.run())
     print(f"\nResult: {result.succeeded}/{result.total_nodes} succeeded in {result.total_duration_ms:.0f}ms")
     if result.halted_early:
