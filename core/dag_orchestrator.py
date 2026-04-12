@@ -18,15 +18,13 @@ Research basis:
 """
 
 import asyncio
-import json
 import logging
 import time
 from collections import defaultdict, deque
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
-from typing import Optional, Callable, Awaitable
+from typing import Optional, Callable
 
 
 logger = logging.getLogger(__name__)
@@ -46,19 +44,19 @@ class AgentNode:
     node_id: str
     name: str
     description: str
-    
+
     # Capability declaration
     provides: list[str] = field(default_factory=list)   # e.g. ["revenue_signal", "stripe_events"]
     requires: list[str] = field(default_factory=list)   # e.g. ["stripe_events"] — must be provided by a dependency
     consumes: list[str] = field(default_factory=list)   # Signal types this node processes
     emits: list[str] = field(default_factory=list)      # Signal types this node produces
-    
+
     # Execution config
     priority: int = 3           # 1=critical, 2=high, 3=normal, 4=low
     timeout_s: float = 30.0
     max_retries: int = 1
     critical: bool = False      # If True and this fails, halt entire orchestration
-    
+
     # Runtime state (set by orchestrator)
     status: NodeStatus = NodeStatus.PENDING
     result: dict = field(default_factory=dict)
@@ -66,10 +64,10 @@ class AgentNode:
     start_time: Optional[float] = None
     end_time: Optional[float] = None
     retry_count: int = 0
-    
+
     # Execution function (async callable)
     execute_fn: Optional[Callable] = field(default=None, repr=False)
-    
+
     @property
     def duration_ms(self) -> Optional[float]:
         if self.start_time and self.end_time:
@@ -96,23 +94,23 @@ class OrchestrationResult:
 class DAGOrchestrator:
     """
     Dependency-aware parallel execution engine for RHNS agent nodes.
-    
+
     Usage:
         orchestrator = DAGOrchestrator()
         orchestrator.register(my_node)
         result = await orchestrator.run()
     """
-    
+
     def __init__(self, max_parallelism: int = 8):
         self.nodes: dict[str, AgentNode] = {}
         self.max_parallelism = max_parallelism
         self._semaphore: Optional[asyncio.Semaphore] = None
-    
+
     def register(self, node: AgentNode) -> "DAGOrchestrator":
         """Register a node. Returns self for chaining."""
         self.nodes[node.node_id] = node
         return self
-    
+
     def _build_dependency_edges(self) -> dict[str, list[str]]:
         """
         Build dependency edges from capability declarations.
@@ -124,16 +122,16 @@ class DAGOrchestrator:
         for node_id, node in self.nodes.items():
             for cap in node.provides:
                 capability_provider[cap] = node_id
-        
+
         deps: dict[str, list[str]] = defaultdict(list)
         for node_id, node in self.nodes.items():
             for req in node.requires:
                 provider = capability_provider.get(req)
                 if provider and provider != node_id:
                     deps[node_id].append(provider)
-        
+
         return dict(deps)
-    
+
     def _topological_sort(self, deps: dict[str, list[str]]) -> list[list[str]]:
         """
         Kahn's algorithm topological sort.
@@ -143,22 +141,22 @@ class DAGOrchestrator:
         all_nodes = set(self.nodes.keys())
         in_degree: dict[str, int] = {n: 0 for n in all_nodes}
         adjacency: dict[str, list[str]] = defaultdict(list)
-        
+
         for node_id, dep_list in deps.items():
             for dep in dep_list:
                 adjacency[dep].append(node_id)
                 in_degree[node_id] += 1
-        
+
         # Start with nodes that have no dependencies
         queue = deque([n for n in all_nodes if in_degree[n] == 0])
         layers: list[list[str]] = []
         processed = 0
-        
+
         while queue:
             layer = list(queue)
             queue.clear()
             layers.append(layer)
-            
+
             next_layer_candidates: dict[str, int] = {}
             for node_id in layer:
                 processed += 1
@@ -166,20 +164,20 @@ class DAGOrchestrator:
                     in_degree[dependent] -= 1
                     if in_degree[dependent] == 0:
                         next_layer_candidates[dependent] = 1
-            
+
             for node_id in next_layer_candidates:
                 queue.append(node_id)
-        
+
         if processed != len(all_nodes):
             raise ValueError("Cycle detected in agent dependency graph")
-        
+
         return layers
-    
+
     async def _execute_node(self, node: AgentNode, context: dict) -> None:
         """Execute a single node with timeout and retry logic."""
         node.status = NodeStatus.RUNNING
         node.start_time = time.time()
-        
+
         for attempt in range(node.max_retries + 1):
             try:
                 async with self._semaphore:
@@ -191,29 +189,29 @@ class DAGOrchestrator:
                         node.result = result or {}
                     else:
                         node.result = {"status": "no_execute_fn", "node_id": node.node_id}
-                
+
                 node.status = NodeStatus.SUCCESS
                 node.end_time = time.time()
                 logger.info(f"✅ [{node.node_id}] {node.name} — SUCCESS ({node.duration_ms:.0f}ms)")
                 return
-                
+
             except asyncio.TimeoutError:
                 node.retry_count = attempt + 1
                 node.error = f"Timeout after {node.timeout_s}s"
                 logger.warning(f"⏱ [{node.node_id}] Timeout on attempt {attempt + 1}")
-                
+
             except Exception as e:
                 node.retry_count = attempt + 1
                 node.error = str(e)
                 logger.warning(f"❌ [{node.node_id}] Error on attempt {attempt + 1}: {e}")
-            
+
             if attempt < node.max_retries:
                 await asyncio.sleep(2 ** attempt)  # Exponential backoff
-        
+
         node.status = NodeStatus.FAILED
         node.end_time = time.time()
         logger.error(f"💀 [{node.node_id}] {node.name} — FAILED: {node.error}")
-    
+
     async def run(self, context: dict = None) -> OrchestrationResult:
         """
         Execute the full DAG.
@@ -223,9 +221,9 @@ class DAGOrchestrator:
         started_at = datetime.now(timezone.utc).isoformat()
         context = context or {}
         self._semaphore = asyncio.Semaphore(self.max_parallelism)
-        
+
         logger.info(f"🚀 DAG Orchestration [{run_id}] — {len(self.nodes)} nodes")
-        
+
         # Reset all node states
         for node in self.nodes.values():
             node.status = NodeStatus.PENDING
@@ -234,7 +232,7 @@ class DAGOrchestrator:
             node.start_time = None
             node.end_time = None
             node.retry_count = 0
-        
+
         # Build and validate DAG
         try:
             deps = self._build_dependency_edges()
@@ -252,26 +250,26 @@ class DAGOrchestrator:
                 halted_early=True,
                 halt_reason=str(e),
             )
-        
+
         halted = False
         halt_reason = ""
         wall_start = time.time()
-        
+
         for layer_idx, layer in enumerate(layers):
             if halted:
                 # Skip remaining layers
                 for node_id in layer:
                     self.nodes[node_id].status = NodeStatus.SKIPPED
                 continue
-            
+
             # Check if any dependency in this layer's nodes failed
             layer_nodes = [self.nodes[nid] for nid in layer]
-            
+
             # Sort within layer by priority
             layer_nodes.sort(key=lambda n: n.priority)
-            
+
             logger.info(f"⚡ Layer {layer_idx + 1}/{len(layers)}: {[n.node_id for n in layer_nodes]}")
-            
+
             # Identify which capabilities are available from successful upstream nodes
             available_caps = set()
             for n in self.nodes.values():
@@ -297,7 +295,7 @@ class DAGOrchestrator:
                 for node in nodes_to_run
             ]
             await asyncio.gather(*tasks, return_exceptions=True)
-            
+
             # Check for critical failures
             for node in layer_nodes:
                 if node.status == NodeStatus.FAILED and node.critical:
@@ -305,19 +303,19 @@ class DAGOrchestrator:
                     halt_reason = f"Critical node [{node.node_id}] failed: {node.error}"
                     logger.error(f"🛑 HALT: {halt_reason}")
                     break
-            
+
             # Update context with results from this layer
             for node in layer_nodes:
                 if node.status == NodeStatus.SUCCESS:
                     context[f"result_{node.node_id}"] = node.result
-        
+
         wall_end = time.time()
-        
+
         # Compile results
         succeeded = sum(1 for n in self.nodes.values() if n.status == NodeStatus.SUCCESS)
         failed = sum(1 for n in self.nodes.values() if n.status == NodeStatus.FAILED)
         skipped = sum(1 for n in self.nodes.values() if n.status == NodeStatus.SKIPPED)
-        
+
         return OrchestrationResult(
             run_id=run_id,
             started_at=started_at,
@@ -340,7 +338,7 @@ class DAGOrchestrator:
             halted_early=halted,
             halt_reason=halt_reason,
         )
-    
+
     def visualize(self) -> str:
         """Return a text representation of the DAG."""
         deps = self._build_dependency_edges()
