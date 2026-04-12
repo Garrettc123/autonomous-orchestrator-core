@@ -272,10 +272,29 @@ class DAGOrchestrator:
             
             logger.info(f"⚡ Layer {layer_idx + 1}/{len(layers)}: {[n.node_id for n in layer_nodes]}")
             
-            # Execute all nodes in this layer concurrently
+            # Identify which capabilities are available from successful upstream nodes
+            available_caps = set()
+            for n in self.nodes.values():
+                if n.status == NodeStatus.SUCCESS:
+                    available_caps.update(n.provides)
+
+            # Skip nodes whose required capabilities weren't satisfied
+            nodes_to_run = []
+            for node in layer_nodes:
+                missing = [cap for cap in node.requires if cap not in available_caps]
+                if missing and node.requires:
+                    node.status = NodeStatus.SKIPPED
+                    node.error = f"Skipped: upstream provider failed for caps {missing}"
+                    logger.warning(
+                        f"⏭ [{node.node_id}] Skipped — missing upstream caps: {missing}"
+                    )
+                else:
+                    nodes_to_run.append(node)
+
+            # Execute all eligible nodes in this layer concurrently
             tasks = [
                 self._execute_node(node, context)
-                for node in layer_nodes
+                for node in nodes_to_run
             ]
             await asyncio.gather(*tasks, return_exceptions=True)
             

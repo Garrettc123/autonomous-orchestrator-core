@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install pytest requests
-      - run: pytest tests/test_dag_orchestrator.py -v
+      - run: pip install pytest pytest-cov pytest-asyncio requests
+      - run: pytest tests/test_dag_orchestrator.py -v --cov=core/dag_orchestrator --cov-report=term-missing --cov-fail-under=80
       - name: Summary
         run: echo "## RHNS DAG Orchestrator CI ✅" >> $GITHUB_STEP_SUMMARY
