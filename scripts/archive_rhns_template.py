@@ -239,7 +239,11 @@ def build_rhns_content(data: dict) -> list:
                 "type": "bulleted_list_item",
                 "bulleted_list_item": {
                     "rich_text": [
-                        {"type": "text", "text": {"content": f"{{{{{key}}}}}"}, "annotations": {"bold": True, "code": True}},
+                        {
+                            "type": "text",
+                            "text": {"content": f"{{{{{key}}}}}"},
+                            "annotations": {"bold": True, "code": True},
+                        },
                         {"type": "text", "text": {"content": f" → {value}"}},
                     ]
                 }
@@ -334,7 +338,7 @@ def archive_engagement(data: dict) -> dict:
 
     page_url = result.get("url", "")
     page_id = result.get("id", "")
-    print(f"SUCCESS: Template created")
+    print("SUCCESS: Template created")
     print(f"  Page ID:  {page_id}")
     print(f"  URL:      {page_url}")
 
