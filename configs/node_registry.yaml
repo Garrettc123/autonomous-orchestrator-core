@@ -1,0 +1,57 @@
+# NODE REGISTRY
+# Autonomous orchestration node definitions.
+# Each node represents a compute endpoint participating in the orchestration graph.
+#
+# Lifecycle:
+#   1. Add the node here with enabled: false
+#   2. Deploy the node and verify health at the transport endpoint
+#   3. Set enabled: true once the deployment is confirmed healthy
+#
+# Required fields per node:
+#   node_id        - Unique identifier (lowercase, hyphens allowed)
+#   display_name   - Human-readable name
+#   enabled        - Whether the orchestrator should activate this node
+#   transport      - Connection details (protocol, host, port, path)
+#   health         - Health-check configuration
+#   capabilities   - List of workload types this node can handle
+#   role           - Role within the orchestration graph
+#   metadata       - Freeform key-value pairs for discovery and labeling
+
+nodes:
+  - node_id: pixel-10
+    display_name: "Pixel 10 Edge Node"
+    enabled: false  # Set to true after deployment health check passes
+    transport:
+      protocol: https
+      host: pixel10.edge.orchestrator.internal
+      port: 8443
+      path: /v1/orchestrate
+      timeout_seconds: 30
+      retry_attempts: 3
+      retry_backoff_seconds: 2
+    health:
+      endpoint: /healthz
+      interval_seconds: 60
+      timeout_seconds: 10
+      failure_threshold: 3
+      expected_status: 200
+      initial_status: pending  # pending | healthy | degraded | unreachable
+    capabilities:
+      - edge_inference
+      - sensor_fusion
+      - local_cache
+      - telemetry_relay
+    role: edge
+    priority: 100
+    tags:
+      device_class: mobile
+      hardware: pixel_10
+      os: android
+      region: auto
+    metadata:
+      registered_at: "2026-04-05T00:00:00Z"
+      registered_by: orchestrator_config
+      notes: >
+        Pre-registered for Pixel 10 edge deployment.
+        Do NOT enable until deployment is confirmed healthy
+        and the transport endpoint is reachable.

@@ -11,8 +11,10 @@ services:
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}
       - NOTION_TOKEN=${NOTION_TOKEN:-}
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - NODE_REGISTRY_PATH=${NODE_REGISTRY_PATH:-configs/node_registry.yaml}
     volumes:
       - ./logs:/app/logs
+      - ./configs:/app/configs:ro
     restart: unless-stopped
     command: python orchestrator.py
 
