@@ -1,0 +1,63 @@
+name: RHNS Episodic Memory
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "lib/agent_trace_logger.py"
+      - ".github/workflows/rhns-episodic-memory.yml"
+
+jobs:
+  write-trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require Supabase secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "Missing repo secrets. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY at"
+            echo "https://github.com/Garrettc123/autonomous-orchestrator-core/settings/secrets/actions"
+            echo "Do not commit the service role key."
+            exit 1
+          fi
+
+      - name: Post agent_traces heartbeat
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          PAYLOAD=$(cat <<EOF
+          {
+            "agent_id": "gha-rhns-memory",
+            "agent_type": "orchestrator",
+            "task_type": "gha_heartbeat",
+            "input_summary": "GitHub Actions RHNS episodic memory workflow",
+            "output_summary": "Heartbeat from ${GITHUB_SHA}",
+            "execution_path": ["github-actions","rhns-episodic-memory","agent_traces"],
+            "confidence_score": 1.0,
+            "outcome": "success",
+            "latency_ms": 0,
+            "metadata": {
+              "run_id": "${GITHUB_RUN_ID}",
+              "ref": "${GITHUB_REF}",
+              "sha": "${GITHUB_SHA}"
+            }
+          }
+          EOF
+          )
+          CODE=$(curl -sS -o /tmp/at.json -w "%{http_code}" \
+            -X POST "${SUPABASE_URL}/rest/v1/agent_traces" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=representation" \
+            --data "$PAYLOAD")
+          echo "HTTP $CODE"
+          cat /tmp/at.json
+          test "$CODE" = "201" -o "$CODE" = "200"
