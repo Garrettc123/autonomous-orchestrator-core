@@ -31,10 +31,12 @@ class TestDiscoverSystems:
             assert isinstance(s, str)
 
     @pytest.mark.asyncio
-    async def test_discover_includes_this_repo(self):
+    async def test_discover_includes_priority_integrations(self):
         eco = UnifiedEcosystem()
         systems = await eco.discover_systems()
-        assert "autonomous-orchestrator-core" in systems
+        assert "garcar-payments" in systems
+        assert "garcar-autonomous-wealth-system" in systems
+        assert "zeus-dashboard" in systems
 
 
 class TestRunSystem:
@@ -68,6 +70,22 @@ class TestRunSystem:
             pass
 
         assert eco.harmony_score >= initial
+
+    @pytest.mark.asyncio
+    async def test_run_system_tracks_active_system(self):
+        eco = UnifiedEcosystem()
+
+        task = asyncio.create_task(eco.run_system("garcar-payments"))
+        await asyncio.sleep(0.01)
+        assert "garcar-payments" in eco.active_systems
+
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+        assert "garcar-payments" not in eco.active_systems
 
     @pytest.mark.asyncio
     async def test_harmony_capped_at_0_99(self):
@@ -105,6 +123,7 @@ class TestActivateAll:
     async def test_activate_all_starts_tasks(self):
         eco = UnifiedEcosystem()
         run_system_calls = []
+        discovered_systems = await eco.discover_systems()
 
         async def fake_run_system(system_id):
             run_system_calls.append(system_id)
@@ -120,7 +139,14 @@ class TestActivateAll:
             with patch.object(eco, "monitor_prosperity", side_effect=fake_monitor):
                 await eco.activate_all()
 
-        # Verify run_system was called for each of the first 10 discovered systems
-        assert len(run_system_calls) == 10
+        # Verify run_system was called for each discovered system up to the launch cap
+        assert len(run_system_calls) == min(10, len(discovered_systems))
         # Verify monitor_prosperity was called once
         assert len(monitor_called) == 1
+
+    def test_get_status_exposes_enterprise_summary(self):
+        eco = UnifiedEcosystem()
+        status = eco.get_status()
+        assert status["summary"]["total_systems"] >= 6
+        assert "systems" in status
+        assert any(system["repo"] == "garcar-payments" for system in status["systems"])
