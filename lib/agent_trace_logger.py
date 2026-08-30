@@ -1,5 +1,7 @@
 """RHNS episodic memory logger. Writes every agent decision to Supabase agent_traces."""
-import os, time, httpx
+import os
+import time
+import httpx
 from datetime import datetime, timezone
 from typing import Optional, Literal
 from pydantic import BaseModel, Field
