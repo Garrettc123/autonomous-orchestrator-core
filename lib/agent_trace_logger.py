@@ -35,6 +35,7 @@ AgentType = Literal[
 ]
 Outcome = Literal["success", "failure", "partial", "escalated"]
 
+
 class AgentTrace(BaseModel):
     agent_id: str
     agent_type: AgentType
