@@ -1,19 +1,32 @@
 """RHNS episodic memory logger. Writes every agent decision to Supabase agent_traces."""
-import os, time, httpx
+import os
+import time
+import httpx
 from datetime import datetime, timezone
 from typing import Optional, Literal
 from pydantic import BaseModel, Field
 
-SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL") or os.environ.get("SUPABASE_URL") or "https://sqnckbvdqofoirgtwwxt.supabase.co"
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY") or ""
+SUPABASE_URL = (
+    os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+    or os.environ.get("SUPABASE_URL")
+    or "https://sqnckbvdqofoirgtwwxt.supabase.co"
+)
+SUPABASE_KEY = (
+    os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    or os.environ.get("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
+    or ""
+)
 HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json",
     "Prefer": "return=representation",
 }
-AgentType = Literal["reason", "harmony", "navigation", "standards", "orchestrator", "arbiter", "custom"]
+AgentType = Literal[
+    "reason", "harmony", "navigation", "standards", "orchestrator", "arbiter", "custom"
+]
 Outcome = Literal["success", "failure", "partial", "escalated"]
+
 
 class AgentTrace(BaseModel):
     agent_id: str
@@ -28,6 +41,7 @@ class AgentTrace(BaseModel):
     tokens_used: Optional[int] = None
     metadata: dict = Field(default_factory=dict)
 
+
 async def log_trace(trace: AgentTrace) -> Optional[str]:
     if not SUPABASE_KEY:
         print("[AgentTrace] Missing SUPABASE_SERVICE_ROLE_KEY")
@@ -35,15 +49,28 @@ async def log_trace(trace: AgentTrace) -> Optional[str]:
     payload = trace.model_dump()
     payload["created_at"] = datetime.now(timezone.utc).isoformat()
     async with httpx.AsyncClient() as client:
-        r = await client.post(f"{SUPABASE_URL}/rest/v1/agent_traces", headers=HEADERS, json=payload, timeout=5.0)
+        r = await client.post(
+            f"{SUPABASE_URL}/rest/v1/agent_traces",
+            headers=HEADERS,
+            json=payload,
+            timeout=5.0,
+        )
         if r.status_code not in (200, 201):
             print(f"[AgentTrace] Log failed {r.status_code}: {r.text}")
             return None
         data = r.json()
         return data[0]["id"] if data else None
 
+
 class TraceContext:
-    def __init__(self, agent_id: str, agent_type: AgentType, task_type: str, input_summary: str = "", metadata: dict | None = None):
+    def __init__(
+        self,
+        agent_id: str,
+        agent_type: AgentType,
+        task_type: str,
+        input_summary: str = "",
+        metadata: dict | None = None,
+    ):
         self.agent_id = agent_id
         self.agent_type = agent_type
         self.task_type = task_type
@@ -66,10 +93,16 @@ class TraceContext:
             self.outcome = "failure"
             self.output_summary = f"Exception: {exc_val}"
         await log_trace(AgentTrace(
-            agent_id=self.agent_id, agent_type=self.agent_type, task_type=self.task_type,
-            input_summary=self.input_summary, output_summary=self.output_summary,
-            execution_path=self.execution_path, confidence_score=self.confidence_score,
-            outcome=self.outcome, latency_ms=latency_ms, tokens_used=self.tokens_used,
+            agent_id=self.agent_id,
+            agent_type=self.agent_type,
+            task_type=self.task_type,
+            input_summary=self.input_summary,
+            output_summary=self.output_summary,
+            execution_path=self.execution_path,
+            confidence_score=self.confidence_score,
+            outcome=self.outcome,
+            latency_ms=latency_ms,
+            tokens_used=self.tokens_used,
             metadata=self.metadata,
         ))
         return False
