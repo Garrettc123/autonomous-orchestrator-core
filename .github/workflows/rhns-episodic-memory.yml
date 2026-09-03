@@ -15,23 +15,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require Supabase secrets
+      - name: Resolve memory backend
+        id: arm
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo "Missing repo secrets. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY at"
-            echo "https://github.com/Garrettc123/autonomous-orchestrator-core/settings/secrets/actions"
-            echo "Do not commit the service role key."
-            exit 1
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::warning::RHNS episodic memory is DISARMED. Add SUPABASE_SERVICE_ROLE_KEY (and optionally SUPABASE_URL) at https://github.com/Garrettc123/autonomous-orchestrator-core/settings/secrets/actions"
+            echo "armed=false" >> "$GITHUB_OUTPUT"
+            echo "Persistence offline. Autonomy loop continues without writing agent_traces."
+            exit 0
           fi
+          echo "armed=true" >> "$GITHUB_OUTPUT"
 
       - name: Post agent_traces heartbeat
+        if: steps.arm.outputs.armed == 'true'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
+          URL="${SUPABASE_URL:-https://sqnckbvdqofoirgtwwxt.supabase.co}"
           PAYLOAD=$(cat <<EOF
           {
             "agent_id": "gha-rhns-memory",
@@ -52,7 +56,7 @@ jobs:
           EOF
           )
           CODE=$(curl -sS -o /tmp/at.json -w "%{http_code}" \
-            -X POST "${SUPABASE_URL}/rest/v1/agent_traces" \
+            -X POST "${URL}/rest/v1/agent_traces" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
