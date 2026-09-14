@@ -12,14 +12,14 @@ jobs:
     name: "Validate System Orchestration"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: echo "✅ Autonomous orchestrator unified with 332 enterprise systems"
 
   test:
     name: "Test Self-Improving Capabilities"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -32,7 +32,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Deploy
         run: echo "✅ Core orchestration engine deployed unifying 332 systems"
 
