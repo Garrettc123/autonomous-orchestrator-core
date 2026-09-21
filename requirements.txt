@@ -1,10 +1,10 @@
 requests==2.34.2
-beautifulsoup4==4.14.3
+beautifulsoup4==4.15.0
 types-requests==2.33.0.20260906
 stripe==15.6.1
 pyyaml==6.0.3
 fastapi==0.136.1
-uvicorn==0.52.4
+uvicorn==0.53.0
 pytest==9.0.3
 pytest-asyncio==1.4.0
 pytest-cov==7.1.0
