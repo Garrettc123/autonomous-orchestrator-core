@@ -1,7 +1,7 @@
 requests==2.34.2
 beautifulsoup4==4.15.0
 types-requests==2.33.0.20260906
-stripe==15.6.1
+stripe==16.0.0
 pyyaml==6.0.3
 fastapi==0.142.2
 uvicorn==0.54.0
