@@ -1,13 +1,11 @@
 name: Pixel 10 Qwen Health Check
 
-# Scheduled health-check that polls the Pixel 10 on-device Ollama endpoint.
-# DISABLED BY DEFAULT — remove `if: false` or set the activation gate
-# once the Pixel node and Qwen model are confirmed live.
+# Scheduled poll removed 2026-10-07. The job was `if: false` and still
+# enqueued every 5 minutes (run 2561 was a skip). That is not a swarm.
+# Re-enable the cron only after PIXEL_HEALTHCHECK_ENABLED=1 and the
+# Pixel Ollama URL answer a real health check.
 
 on:
-  schedule:
-    # Every 5 minutes (matches config polling.interval_seconds: 300).
-    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       force_run:
@@ -18,23 +16,15 @@ on:
 jobs:
   healthcheck:
     runs-on: ubuntu-latest
-    # Primary gate: flip to `true` or remove this line when the Pixel
-    # node is live. The Python module has its own activation gate too.
-    if: false
+    if: github.event_name == 'workflow_dispatch'
 
     permissions:
       contents: read
 
     env:
-      # Override with the real Pixel 10 Ollama URL in repo secrets.
       PIXEL_OLLAMA_URL: ${{ secrets.PIXEL_OLLAMA_URL }}
-      # Activation gate — set this secret to "1" to enable.
       PIXEL_HEALTHCHECK_ENABLED: ${{ secrets.PIXEL_HEALTHCHECK_ENABLED }}
-      # Slack webhook URL for posting health reports.
-      # Create an Incoming Webhook at https://api.slack.com/messaging/webhooks
-      # and store the URL as this repo secret.
       SLACK_HEALTHCHECK_WEBHOOK_URL: ${{ secrets.SLACK_HEALTHCHECK_WEBHOOK_URL }}
-      # Fallback: existing Slack Bot Token (if webhook not configured).
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
     steps:
@@ -59,7 +49,6 @@ jobs:
 
           config = load_config()
 
-          # In workflow_dispatch with force_run, bypass activation gate.
           force = '${{ github.event.inputs.force_run }}' == 'true'
           if not force and not is_enabled(config):
               print('[pixel-healthcheck] Not enabled. Exiting.')
@@ -77,7 +66,6 @@ jobs:
           posted = post_to_slack(config, payload)
           print(f'Slack posted: {posted}')
 
-          # Fail the workflow if the endpoint is down.
           if not result['endpoint']['ok']:
               print('::error::Pixel 10 Ollama endpoint is unreachable')
               exit(1)
