@@ -1,42 +1,22 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# RHNS Template Archiver Workflow
-# ─────────────────────────────────────────────────────────────────────────────
-# Archives a completed client engagement as a parameterized RHNS template
-# in the Notion "RHNS Template Library" database.
-#
-# Triggers:
-#   1. workflow_dispatch  — manual trigger from GitHub UI with form inputs
-#   2. repository_dispatch — programmatic trigger from other systems via API:
-#        curl -X POST \
-#          -H "Authorization: token $GITHUB_TOKEN" \
-#          -H "Accept: application/vnd.github.v3+json" \
-#          https://api.github.com/repos/Garrettc123/autonomous-orchestrator-core/dispatches \
-#          -d '{"event_type": "archive_engagement", "client_payload": { ... }}'
-#   3. workflow_call — reusable by other workflows in this repo
-# ─────────────────────────────────────────────────────────────────────────────
-
-name: "🧬 RHNS Template Archiver"
+name: "RHNS Template Archiver"
 
 on:
-  # ── Manual trigger with form inputs ──
   workflow_dispatch:
     inputs:
       template_name:
-        description: "Template name (e.g., 'Revenue Leak Audit — GC $2-5M')"
+        description: "Template name"
         required: true
         type: string
+        default: "LLA-47 Lead Leak Audit — Texas trades"
       vertical:
         description: "Client vertical"
         required: true
         type: choice
         options:
+          - HVAC
+          - Roofing
+          - Plumbing
           - General Contractor
-          - Utility
-          - Healthcare
-          - Energy
-          - Manufacturing
-          - Engineering Services
-          - Construction
           - Other
       revenue_range:
         description: "Client revenue range"
@@ -56,55 +36,56 @@ on:
           - SMB
           - Mid-Market
           - Enterprise
-          - Government
       product_used:
         description: "Garcar product used"
         required: true
         type: choice
         options:
-          - Starter Audit
-          - MAUT Engine
-          - Revenue Recovery Sprint
-          - AI Growth Engine
-          - Platform License
+          - LLA-47
+          - AI-AUDIT-299
+          - ENT-AUDIT-3500
+          - MARS-750
+          - MARS-1500
       engagement_id:
-        description: "Unique engagement ID (e.g., ENG-2026-001)"
+        description: "Unique engagement ID"
         required: false
         type: string
       tags:
-        description: "Comma-separated tags (e.g., revenue-leak,pricing,automation)"
+        description: "Comma-separated tags"
         required: false
         type: string
+        default: "lla-47,lead-leak,texas-trades"
       reason:
-        description: "RHNS Reason layer — first-principles analysis"
+        description: "RHNS Reason layer"
         required: true
         type: string
+        default: "First-response gap after the lead hits is the cash leak."
       harmony:
-        description: "RHNS Harmony layer — system alignment analysis"
+        description: "RHNS Harmony layer"
         required: true
         type: string
+        default: "Map aligns to LLA-47, not a parked bounty swarm."
       navigation:
-        description: "RHNS Navigation layer — execution path"
+        description: "RHNS Navigation layer"
         required: true
         type: string
+        default: "Deliver the 48-hour leak map to the shop email."
       standards:
-        description: "RHNS Standards layer — quality guardrails"
+        description: "RHNS Standards layer"
         required: true
         type: string
+        default: "Cash is Stripe paid=true and last4 is not 4242."
       outcome_summary:
         description: "Quantified engagement outcome"
         required: false
         type: string
       parameters_json:
-        description: 'Template parameters as JSON (e.g., {"client_name":"Acme","annual_revenue":"$3.2M"})'
+        description: "Template parameters as JSON"
         required: false
         type: string
-
-  # ── Programmatic trigger from external systems ──
+        default: '{"sku":"LLA-47","pay":"https://buy.stripe.com/3cI00j7YV0hQgDp8BR43S2v"}'
   repository_dispatch:
     types: [archive_engagement]
-
-  # ── Reusable by other workflows ──
   workflow_call:
     inputs:
       engagement_data_json:
@@ -113,14 +94,13 @@ on:
         type: string
     secrets:
       NOTION_API_KEY:
-        required: true
+        required: false
 
 jobs:
   archive:
-    name: "📦 Archive RHNS Template"
+    name: "Archive RHNS Template"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -130,97 +110,108 @@ jobs:
         with:
           python-version: "3.12"
 
-      # ── Build engagement data JSON ──
       - name: Build engagement data
         id: build_data
         run: |
-          # Determine trigger source and build data accordingly
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            # From repository_dispatch — payload comes in client_payload
             echo "source=repository_dispatch" >> "$GITHUB_OUTPUT"
             cat << 'PAYLOAD_EOF' > /tmp/engagement.json
           ${{ toJson(github.event.client_payload) }}
           PAYLOAD_EOF
-
           elif [ "${{ github.event_name }}" = "workflow_call" ]; then
             echo "source=workflow_call" >> "$GITHUB_OUTPUT"
             cat << 'PAYLOAD_EOF' > /tmp/engagement.json
           ${{ inputs.engagement_data_json }}
           PAYLOAD_EOF
-
           else
-            # From workflow_dispatch — build JSON from individual inputs
             echo "source=workflow_dispatch" >> "$GITHUB_OUTPUT"
-            python3 -c "
-          import json, sys
-
-          tags_raw = '''${{ inputs.tags }}'''
-          tags = [t.strip() for t in tags_raw.split(',') if t.strip()] if tags_raw else []
-
-          params_raw = '''${{ inputs.parameters_json }}'''
+            python3 - << 'PY'
+          import json, os
+          tags_raw = os.environ.get("TAGS", "")
+          tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
+          params_raw = os.environ.get("PARAMS", "")
           try:
               params = json.loads(params_raw) if params_raw else {}
           except json.JSONDecodeError:
               params = {}
-
+          params.setdefault("sku", "LLA-47")
+          params.setdefault("pay", "https://buy.stripe.com/3cI00j7YV0hQgDp8BR43S2v")
           data = {
-              'template_name': '''${{ inputs.template_name }}''',
-              'vertical': '''${{ inputs.vertical }}''',
-              'revenue_range': '''${{ inputs.revenue_range }}''',
-              'client_type': '''${{ inputs.client_type }}''',
-              'product_used': '''${{ inputs.product_used }}''',
-              'engagement_id': '''${{ inputs.engagement_id }}''' or None,
-              'tags': tags,
-              'reason': '''${{ inputs.reason }}''',
-              'harmony': '''${{ inputs.harmony }}''',
-              'navigation': '''${{ inputs.navigation }}''',
-              'standards': '''${{ inputs.standards }}''',
-              'outcome_summary': '''${{ inputs.outcome_summary }}''' or None,
-              'parameters': params,
-              'status': 'Active Template',
+              "template_name": os.environ.get("TEMPLATE_NAME") or "LLA-47 Lead Leak Audit",
+              "vertical": os.environ.get("VERTICAL") or "HVAC",
+              "revenue_range": os.environ.get("REVENUE_RANGE") or "$1-5M",
+              "client_type": os.environ.get("CLIENT_TYPE") or "SMB",
+              "product_used": os.environ.get("PRODUCT_USED") or "LLA-47",
+              "engagement_id": os.environ.get("ENGAGEMENT_ID") or None,
+              "tags": tags,
+              "reason": os.environ.get("REASON") or "",
+              "harmony": os.environ.get("HARMONY") or "",
+              "navigation": os.environ.get("NAVIGATION") or "",
+              "standards": os.environ.get("STANDARDS") or "",
+              "outcome_summary": os.environ.get("OUTCOME") or None,
+              "parameters": params,
+              "status": "Active Template",
           }
-          # Remove None values
           data = {k: v for k, v in data.items() if v is not None}
-          with open('/tmp/engagement.json', 'w') as f:
+          with open("/tmp/engagement.json", "w") as f:
               json.dump(data, f, indent=2)
           print(json.dumps(data, indent=2))
-          "
+          PY
           fi
+        env:
+          TAGS: ${{ inputs.tags }}
+          PARAMS: ${{ inputs.parameters_json }}
+          TEMPLATE_NAME: ${{ inputs.template_name }}
+          VERTICAL: ${{ inputs.vertical }}
+          REVENUE_RANGE: ${{ inputs.revenue_range }}
+          CLIENT_TYPE: ${{ inputs.client_type }}
+          PRODUCT_USED: ${{ inputs.product_used }}
+          ENGAGEMENT_ID: ${{ inputs.engagement_id }}
+          REASON: ${{ inputs.reason }}
+          HARMONY: ${{ inputs.harmony }}
+          NAVIGATION: ${{ inputs.navigation }}
+          STANDARDS: ${{ inputs.standards }}
+          OUTCOME: ${{ inputs.outcome_summary }}
 
       - name: Validate engagement data
         run: |
-          echo "── Engagement data ──"
-          python3 -c "
+          python3 - << 'PY'
           import json, sys
-          with open('/tmp/engagement.json') as f:
+          with open("/tmp/engagement.json") as f:
               data = json.load(f)
           print(json.dumps(data, indent=2))
-          if 'template_name' not in data:
-              print('ERROR: template_name is required', file=sys.stderr)
+          if "template_name" not in data:
+              print("ERROR: template_name is required", file=sys.stderr)
               sys.exit(1)
-          print(f'Template: {data[\"template_name\"]}')
-          print('Validation passed.')
-          "
+          print("Validation passed.")
+          PY
 
-      # ── Archive to Notion ──
       - name: Archive RHNS template to Notion
         id: archive
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
         run: |
+          if [ -z "$NOTION_API_KEY" ]; then
+            echo "::warning::RHNS archiver DISARMED. Add NOTION_API_KEY at https://github.com/Garrettc123/autonomous-orchestrator-core/settings/secrets/actions"
+            echo "armed=false" >> "$GITHUB_OUTPUT"
+            echo "template_name=LLA-47 Lead Leak Audit" >> "$GITHUB_OUTPUT"
+            echo "page_url=https://github.com/Garrettc123/autonomous-orchestrator-core/blob/fix/rhns-flywheel-lla47/ops/lla47-flywheel.md" >> "$GITHUB_OUTPUT"
+            echo "Receipt written in ops/lla47-flywheel.md. Pay link is LLA-47. Not cash."
+            exit 0
+          fi
+          echo "armed=true" >> "$GITHUB_OUTPUT"
           python3 scripts/archive_rhns_template.py --file /tmp/engagement.json
 
-      # ── Summary ──
       - name: Generate workflow summary
         if: always()
         run: |
-          echo "## 🧬 RHNS Template Archived" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Template | ${{ steps.archive.outputs.template_name }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Page URL | ${{ steps.archive.outputs.page_url }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Trigger | ${{ steps.build_data.outputs.source }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Timestamp | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Template is now available in the [RHNS Template Library](https://www.notion.so/c0d0b2c034314f1f87b1f92ddecb8f8d)." >> $GITHUB_STEP_SUMMARY
+          echo "## RHNS Template Archiver" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Template | ${{ steps.archive.outputs.template_name }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Page | ${{ steps.archive.outputs.page_url }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SKU | LLA-47 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Pay | https://buy.stripe.com/3cI00j7YV0hQgDp8BR43S2v |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Cash is Stripe paid=true only." >> "$GITHUB_STEP_SUMMARY"
