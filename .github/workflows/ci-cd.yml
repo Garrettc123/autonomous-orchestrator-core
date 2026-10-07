@@ -1,51 +1,71 @@
 name: Autonomous Orchestrator Core - CI/CD
 
+# Hourly schedule removed. It queued echo jobs that failed in seconds
+# with runner_id 0 and printed a fake revenue number. Real deploys stay
+# manual until a runner is assigned and a host secret exists.
 on:
   push:
     branches: [main]
+    paths:
+      - ".github/workflows/ci-cd.yml"
+      - "requirements.txt"
+      - "**.py"
   workflow_dispatch:
-  schedule:
-    - cron: '0 */1 * * *'  # Every hour - CRITICAL
+
+concurrency:
+  group: orchestrator-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
     name: "Validate System Orchestration"
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-      - run: echo "✅ Autonomous orchestrator unified with 332 enterprise systems"
+      - name: Confirm workflow contract
+        run: |
+          test -f .github/workflows/archive-engagement.yml
+          test -f .github/workflows/rhns-episodic-memory.yml
+          echo "Orchestrator workflows present. This job does not deploy."
 
   test:
     name: "Test Self-Improving Capabilities"
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: echo "✅ Self-improvement capabilities validated"
+      - name: Import check
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          python -c "import pathlib; print('python ok', pathlib.Path('.').resolve())"
 
   deploy:
     name: "Deploy Orchestrator Core"
     runs-on: ubuntu-latest
     needs: [validate, test]
-    if: github.ref == 'refs/heads/main'
-    environment: production
+    # Echo is not a deploy. No production environment gate: that gate
+    # skipped or failed scheduled runs before a runner started.
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v7
-      - name: Deploy
-        run: echo "✅ Core orchestration engine deployed unifying 332 systems"
+      - name: Not a deploy
+        run: |
+          echo "Manual dispatch only. No host deploy from this workflow."
+          echo "Cash SKU remains LLA-47. This job does not charge."
 
   orchestration-monitor:
-    name: "🌐 Orchestration Monitor"
+    name: "Orchestration Monitor"
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Status
         run: |
-          echo "🌐 AUTONOMOUS ORCHESTRATOR CORE"
-          echo "Connected Systems: 332 enterprise systems"
-          echo "Self-Improvement: Continuous"
-          echo "Optimization Cycles: 1000+/day"
-          echo "Revenue: \$400K+/month"
-          echo "✅ Master control layer for entire ecosystem"
+          echo "AUTONOMOUS ORCHESTRATOR CORE"
+          echo "Scheduler: workflow_dispatch and path-filtered push"
+          echo "Revenue: not reported here. Cash is a Stripe paid=true charge."
+          echo "SKU: LLA-47 https://buy.stripe.com/3cI00j7YV0hQgDp8BR43S2v"
