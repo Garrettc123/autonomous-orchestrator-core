@@ -1,6 +1,6 @@
 requests==2.34.2
 beautifulsoup4==4.15.0
-types-requests==2.33.0.20260906
+types-requests==2.33.0.20261006
 stripe==16.0.0
 pyyaml==6.0.3
 fastapi==0.143.2
