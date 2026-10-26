@@ -1,0 +1,11 @@
+{
+  "edition": "2-phase1-subset",
+  "scope": "Prototype vocabulary only; full consolidated glossary import pending",
+  "terms": [
+    {"id": "logical-action", "definition": "One intended operation independent of attempts", "type": "general"},
+    {"id": "authorization-binding", "definition": "Compare the executed request with the exact approved request", "type": "proposed-convention"},
+    {"id": "execution-receipt", "definition": "Record of an attempt and observed outcome, not all downstream consequences", "type": "general"},
+    {"id": "uncertain-outcome", "definition": "Whether an external effect occurred is unresolved", "type": "general"},
+    {"id": "operationally-verified", "definition": "Observations support a stated bounded capability", "type": "proposed-convention"}
+  ]
+}
