@@ -9,10 +9,11 @@ def test_app_metadata_is_stable():
 
 
 def test_health_endpoint_returns_healthy_status():
-    assert health() == {
-        "status": "healthy",
-        "system": "Autonomous Orchestrator Core",
-    }
+    payload = health()
+    assert payload["status"] == "healthy"
+    assert payload["system"] == "autonomous-orchestrator-core"
+    assert payload["version"] == "1.0.0"
+    assert "timestamp" in payload
 
 
 def test_root_endpoint_exposes_service_metadata():
