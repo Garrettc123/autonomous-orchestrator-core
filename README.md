@@ -1,3 +1,5 @@
+> **Evidence status (2026-11-10, fleet protocol):** This repository contains source code and design documentation. Claims in this README are design targets, not verified results. No deployment, revenue, customer traction, or runtime execution is evidenced by this repository alone. Current verified fleet state: `Garrettc123/garcar-enterprise-sync-core/LLM_SYNC.md`.
+
 # 🌈 Autonomous Orchestrator Core
 
 [![CI](https://github.com/Garrettc123/autonomous-orchestrator-core/actions/workflows/ci.yml/badge.svg)](https://github.com/Garrettc123/autonomous-orchestrator-core/actions/workflows/ci.yml)
