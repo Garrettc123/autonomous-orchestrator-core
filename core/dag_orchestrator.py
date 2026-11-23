@@ -110,6 +110,8 @@ class DAGOrchestrator:
 
     def register(self, node: AgentNode) -> "DAGOrchestrator":
         """Register a node. Returns self for chaining."""
+        if node.node_id in self.nodes:
+            raise ValueError(f"Duplicate node ID: {node.node_id}")
         self.nodes[node.node_id] = node
         return self
 
@@ -119,18 +121,23 @@ class DAGOrchestrator:
         Node A depends on Node B if B.provides intersects A.requires.
         Returns {node_id: [dependency_node_ids]}
         """
-        # Map capability → node_id
+        # Require one unambiguous provider for each declared capability.
         capability_provider: dict[str, str] = {}
         for node_id, node in self.nodes.items():
             for cap in node.provides:
+                if cap in capability_provider:
+                    raise ValueError(f"Duplicate capability provider: {cap}")
                 capability_provider[cap] = node_id
 
         deps: dict[str, list[str]] = defaultdict(list)
         for node_id, node in self.nodes.items():
             for req in node.requires:
                 provider = capability_provider.get(req)
-                if provider and provider != node_id:
-                    deps[node_id].append(provider)
+                if provider is None:
+                    raise ValueError(f"Missing capability provider: {req}")
+                if provider == node_id:
+                    raise ValueError(f"Self-dependent capability: {req}")
+                deps[node_id].append(provider)
 
         return dict(deps)
 
@@ -225,9 +232,13 @@ class DAGOrchestrator:
                 return
 
             except asyncio.TimeoutError:
-                node.retry_count = attempt + 1
-                node.error = f"Timeout after {node.timeout_s}s"
-                logger.warning("Node %s timed out on attempt %s", node.node_id, attempt + 1)
+                # A timed-out worker may have committed an external side effect.
+                # Never dispatch it again without provider reconciliation.
+                node.error = f"Unknown outcome after timeout ({node.timeout_s}s)"
+                node.status = NodeStatus.UNVERIFIED
+                node.end_time = time.time()
+                logger.warning("Node %s timed out; reconciliation required", node.node_id)
+                return
             except Exception as exc:
                 node.retry_count = attempt + 1
                 node.error = str(exc)
