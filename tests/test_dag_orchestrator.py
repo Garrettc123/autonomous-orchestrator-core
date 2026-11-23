@@ -157,7 +157,6 @@ def test_visualize_returns_string():
     assert "vis_a" in output or "vis_b" in output
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "outcome, expected",
