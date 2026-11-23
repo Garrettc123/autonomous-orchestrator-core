@@ -28,7 +28,8 @@ async def run_defender_os(ctx: dict) -> dict:
     if not token:
         return {"status": "skipped", "reason": "GH_PAT not set"}
     try:
-        resp = requests.post(
+        resp = await asyncio.to_thread(
+            requests.post,
             "https://api.github.com/repos/Garrettc123/defender-os/actions/workflows/status-report.yml/dispatches",
             headers={"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"},
             json={"ref": "main"},
@@ -45,7 +46,8 @@ async def run_revenue_intelligence(ctx: dict) -> dict:
     if not token:
         return {"status": "skipped", "reason": "GH_PAT not set"}
     try:
-        resp = requests.post(
+        resp = await asyncio.to_thread(
+            requests.post,
             "https://api.github.com/repos/Garrettc123/revenue-intelligence-engine/actions/workflows/revenue-intelligence.yml/dispatches",  # noqa: E501
             headers={"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"},
             json={"ref": "main"},
@@ -61,16 +63,16 @@ async def run_harmony_score(ctx: dict) -> dict:
     results = {k: v for k, v in ctx.items() if k.startswith("result_")}
     total = len(results)
     if total == 0:
-        return {"harmony_score": 0.0, "systems_online": 0}
-    succeeded = sum(1 for r in results.values() if r.get("status") in ("triggered", "success", "ok"))
+        return {"status": "completed", "harmony_score": 0.0, "systems_online": 0}
+    succeeded = sum(1 for r in results.values() if r.get("status") in ("success", "ok", "completed", "done"))
     score = succeeded / total
     logger.info(f"🎯 RHNS Harmony Score: {score:.3f} ({succeeded}/{total} systems nominal)")
-    return {"harmony_score": score, "systems_online": succeeded, "systems_total": total}
+    return {"status": "completed", "harmony_score": score, "systems_online": succeeded, "systems_total": total}
 
 
 async def run_market_intelligence(ctx: dict) -> dict:
     """Placeholder for market intelligence scan."""
-    return {"status": "ok", "threats_detected": 0, "opportunities": 0}
+    return {"status": "unavailable", "reason": "No real market scanner is configured"}
 
 
 async def run_slack_broadcast(ctx: dict) -> dict:
@@ -84,8 +86,9 @@ async def run_slack_broadcast(ctx: dict) -> dict:
 
     msg = f"🌈 *RHNS DAG Cycle Complete* | Harmony: {harmony:.2f} | {systems} systems nominal"
     try:
-        requests.post(webhook, json={"text": msg}, timeout=5)
-        return {"status": "sent", "message": msg}
+        resp = await asyncio.to_thread(requests.post, webhook, json={"text": msg}, timeout=5)
+        resp.raise_for_status()
+        return {"status": "completed", "delivery": "accepted_by_provider"}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 

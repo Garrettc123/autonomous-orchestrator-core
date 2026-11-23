@@ -35,7 +35,8 @@ class NodeStatus(Enum):
     RUNNING = "running"
     SUCCESS = "success"
     FAILED = "failed"
-    SKIPPED = "skipped"   # Skipped because a dependency failed
+    SKIPPED = "skipped"   # Skipped explicitly or by a failed dependency
+    UNVERIFIED = "unverified"  # Dispatch accepted or completion evidence unavailable
 
 
 @dataclass
@@ -89,6 +90,7 @@ class OrchestrationResult:
     node_results: dict[str, dict] = field(default_factory=dict)
     halted_early: bool = False
     halt_reason: str = ""
+    unverified: int = 0
 
 
 class DAGOrchestrator:
@@ -174,43 +176,69 @@ class DAGOrchestrator:
         return layers
 
     async def _execute_node(self, node: AgentNode, context: dict) -> None:
-        """Execute a single node with timeout and retry logic."""
+        """Execute one worker; only explicit terminal success provides capabilities.
+
+        Dispatch accepted, skipped work, missing handlers, and returned errors are
+        never success. Non-terminal responses are not retried, because a retry
+        could dispatch the same external side effect a second time.
+        """
         node.status = NodeStatus.RUNNING
         node.start_time = time.time()
+
+        if node.execute_fn is None:
+            node.status = NodeStatus.FAILED
+            node.error = "No execution function configured"
+            node.end_time = time.time()
+            return
 
         for attempt in range(node.max_retries + 1):
             try:
                 async with self._semaphore:
-                    if node.execute_fn:
-                        result = await asyncio.wait_for(
-                            node.execute_fn(context),
-                            timeout=node.timeout_s,
-                        )
-                        node.result = result or {}
-                    else:
-                        node.result = {"status": "no_execute_fn", "node_id": node.node_id}
+                    result = await asyncio.wait_for(
+                        node.execute_fn(context),
+                        timeout=node.timeout_s,
+                    )
 
-                node.status = NodeStatus.SUCCESS
+                node.result = result if isinstance(result, dict) else {}
+                outcome = str(node.result.get("status", "")).strip().lower()
+                if outcome in ("success", "ok", "completed", "done"):
+                    node.status = NodeStatus.SUCCESS
+                    node.end_time = time.time()
+                    logger.info(
+                        "Completed node %s (%0.0fms)",
+                        node.node_id, node.duration_ms,
+                    )
+                    return
+
+                if outcome in ("error", "failed", "failure"):
+                    node.status = NodeStatus.FAILED
+                elif outcome == "skipped":
+                    node.status = NodeStatus.SKIPPED
+                else:
+                    node.status = NodeStatus.UNVERIFIED
+
+                node.error = (
+                    f"Worker did not prove completion (status={outcome or 'missing'})"
+                )
                 node.end_time = time.time()
-                logger.info(f"✅ [{node.node_id}] {node.name} — SUCCESS ({node.duration_ms:.0f}ms)")
+                logger.warning("Node %s: %s", node.node_id, node.error)
                 return
 
             except asyncio.TimeoutError:
                 node.retry_count = attempt + 1
                 node.error = f"Timeout after {node.timeout_s}s"
-                logger.warning(f"⏱ [{node.node_id}] Timeout on attempt {attempt + 1}")
-
-            except Exception as e:
+                logger.warning("Node %s timed out on attempt %s", node.node_id, attempt + 1)
+            except Exception as exc:
                 node.retry_count = attempt + 1
-                node.error = str(e)
-                logger.warning(f"❌ [{node.node_id}] Error on attempt {attempt + 1}: {e}")
+                node.error = str(exc)
+                logger.warning("Node %s raised on attempt %s: %s", node.node_id, attempt + 1, exc)
 
             if attempt < node.max_retries:
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                await asyncio.sleep(2 ** attempt)
 
         node.status = NodeStatus.FAILED
         node.end_time = time.time()
-        logger.error(f"💀 [{node.node_id}] {node.name} — FAILED: {node.error}")
+        logger.error("Node %s failed: %s", node.node_id, node.error)
 
     def _reset_nodes(self) -> None:
         """Reset all node runtime state before a run."""
@@ -246,8 +274,8 @@ class DAGOrchestrator:
     def _check_halt(self, layer_nodes: list) -> str:
         """Return a halt reason if any critical node failed, else empty string."""
         for node in layer_nodes:
-            if node.status == NodeStatus.FAILED and node.critical:
-                reason = f"Critical node [{node.node_id}] failed: {node.error}"
+            if node.critical and node.status in (NodeStatus.FAILED, NodeStatus.SKIPPED, NodeStatus.UNVERIFIED):
+                reason = f"Critical node [{node.node_id}] did not complete ({node.status.value}): {node.error}"
                 logger.error(f"🛑 HALT: {reason}")
                 return reason
         return ""
@@ -266,6 +294,7 @@ class DAGOrchestrator:
         succeeded = sum(1 for n in self.nodes.values() if n.status == NodeStatus.SUCCESS)
         failed = sum(1 for n in self.nodes.values() if n.status == NodeStatus.FAILED)
         skipped = sum(1 for n in self.nodes.values() if n.status == NodeStatus.SKIPPED)
+        unverified = sum(1 for n in self.nodes.values() if n.status == NodeStatus.UNVERIFIED)
         return OrchestrationResult(
             run_id=run_id,
             started_at=started_at,
@@ -274,6 +303,7 @@ class DAGOrchestrator:
             succeeded=succeeded,
             failed=failed,
             skipped=skipped,
+            unverified=unverified,
             total_duration_ms=(time.time() - wall_start) * 1000,
             node_results={
                 nid: {
