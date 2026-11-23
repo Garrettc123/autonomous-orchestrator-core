@@ -69,10 +69,12 @@ class WorkflowReceiptLedger:
         if not isinstance(provider_run_id, int) or provider_run_id <= 0 or not head_sha:
             raise ValueError("Provider run ID and SHA required")
         with self._connect() as db:
-            cur = db.execute("""UPDATE workflow_receipts
+            cur = db.execute(
+                """UPDATE workflow_receipts
                 SET provider_run_id=?, head_sha=?, state='running', updated_at=?
                 WHERE dispatch_id=? AND state='accepted' AND provider_run_id IS NULL""",
-                (provider_run_id, head_sha, utcnow(), dispatch_id))
+                (provider_run_id, head_sha, utcnow(), dispatch_id),
+            )
             if cur.rowcount != 1:
                 raise ValueError("Cannot bind an unaccepted or already bound receipt")
 
@@ -86,12 +88,16 @@ class WorkflowReceiptLedger:
             raise ValueError("Provider run is not terminal")
         state = "completed" if conclusion == "success" else "failed"
         with self._connect() as db:
-            cur = db.execute("""UPDATE workflow_receipts
+            cur = db.execute(
+                """UPDATE workflow_receipts
                 SET state=?, conclusion=?, evidence_json=?, updated_at=?
                 WHERE dispatch_id=? AND provider_run_id=? AND head_sha=?
                 AND state='running'""",
-                (state, conclusion, json.dumps(evidence, sort_keys=True),
-                 utcnow(), dispatch_id, provider_run_id, head_sha))
+                (
+                    state, conclusion, json.dumps(evidence, sort_keys=True),
+                    utcnow(), dispatch_id, provider_run_id, head_sha,
+                ),
+            )
             if cur.rowcount != 1:
                 raise ValueError("Run identity mismatch or already finalized")
         return self.read(dispatch_id)
