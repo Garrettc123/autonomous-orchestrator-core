@@ -63,7 +63,7 @@ async def test_dependency_order_enforced():
 
     async def fn_a(ctx):
         execution_order.append("A")
-        return {"cap_a": True}
+        return {"status": "completed", "cap_a": True}
 
     async def fn_b(ctx):
         execution_order.append("B")
@@ -155,3 +155,66 @@ def test_visualize_returns_string():
     assert isinstance(output, str)
     assert len(output) > 0
     assert "vis_a" in output or "vis_b" in output
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "outcome, expected",
+    [
+        ("triggered", NodeStatus.UNVERIFIED),
+        ("queued", NodeStatus.UNVERIFIED),
+        ("pending", NodeStatus.UNVERIFIED),
+        ("unavailable", NodeStatus.UNVERIFIED),
+        ("skipped", NodeStatus.SKIPPED),
+        ("error", NodeStatus.FAILED),
+        ("failed", NodeStatus.FAILED),
+    ],
+)
+async def test_non_completed_status_blocks_dependents_without_duplicate_retry(outcome, expected):
+    dispatches = []
+
+    async def dispatch(ctx):
+        dispatches.append(outcome)
+        return {"status": outcome, "http": 204}
+
+    dag = DAGOrchestrator()
+    dag.register(make_node(
+        "defense", provides=["security_baseline"], execute_fn=dispatch,
+        critical=True, max_retries=2,
+    ))
+    dag.register(make_node(
+        "revenue", requires=["security_baseline"], execute_fn=ok_fn,
+    ))
+    result = await dag.run()
+
+    assert dispatches == [outcome], "Do not re-dispatch non-terminal outcomes"
+    assert dag.nodes["defense"].status == expected
+    assert dag.nodes["revenue"].status == NodeStatus.SKIPPED
+    assert result.succeeded == 0
+    assert result.halted_early
+
+
+@pytest.mark.asyncio
+async def test_missing_execution_function_cannot_emit_capabilities():
+    dag = DAGOrchestrator()
+    dag.register(make_node("missing", provides=["token"], critical=True))
+    dag.register(make_node("dependent", requires=["token"], execute_fn=ok_fn))
+    result = await dag.run()
+    assert dag.nodes["missing"].status == NodeStatus.FAILED
+    assert dag.nodes["dependent"].status == NodeStatus.SKIPPED
+    assert result.halted_early
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("payload", [{}, {"capability": True}, None])
+async def test_missing_completion_evidence_is_unverified(payload):
+    async def no_evidence(ctx):
+        return payload
+
+    dag = DAGOrchestrator()
+    dag.register(make_node("worker", execute_fn=no_evidence))
+    result = await dag.run()
+    assert result.succeeded == 0
+    assert result.unverified == 1
+    assert dag.nodes["worker"].status == NodeStatus.UNVERIFIED
