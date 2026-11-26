@@ -135,47 +135,29 @@ class AuthorizedWorkflowDispatcher:
             "run-name:", "RHNS/{0}", "rhns_dispatch_id:", "workflow_dispatch:",
         ))
 
-    def dispatch(self, claims, signature, github_token):
-        if not self.enabled:
-            return {"status": "denied", "reason": "execution_disabled"}
-        try:
-            verify_approval(claims, signature, self.verification_secret)
-        except PermissionError:
-            return {"status": "denied", "reason": "approval_invalid"}
-        if not github_token:
-            return {"status": "denied", "reason": "provider_token_missing"}
-        try:
-            if not self._workflow_contract_is_live(claims, github_token):
-                return {"status": "denied", "reason": "approved_workflow_not_live"}
-        except (requests.RequestException, ValueError, TypeError, UnicodeError, OSError):
-            return {"status": "unverified", "reason": "workflow_contract_unavailable"}
+    def _reserve_with_approval(self, claims):
+        """Persist the idempotent reservation and signed approval before POST."""
         dispatch_id = claims["dispatch_id"]
-        try:
-            self.ledger.reserve(
-                dispatch_id, claims["tenant_id"], claims["repo"], claims["workflow"],
-                claims["ref"], claims["request_key"],
-            )
-            with sqlite3.connect(self.ledger.path, timeout=10) as db:
-                db.execute(
-                    """INSERT INTO workflow_dispatch_approvals
-                    (dispatch_id,approval_id,approved_by,policy_version,
-                     approval_digest,verified_at) VALUES(?,?,?,?,?,?)""",
-                    (dispatch_id, claims["approval_id"], claims["approved_by"],
-                     claims["policy_version"], hashlib.sha256(canonical(claims)).hexdigest(),
-                     utcnow()),
-                )
-        except sqlite3.IntegrityError:
-            # Atomic unique constraints mean repeated approval or request keys
-            # can never cause another external POST.
-            return {"status": "unverified", "reason": "duplicate_or_existing_dispatch"}
-        except (OSError, sqlite3.Error):
-            return {"status": "unverified", "reason": "durable_reservation_failed"}
-
-        owner_repo = claims["repo"].split("/")
-        url = (
-            "https://api.github.com/repos/" + owner_repo[0] + "/" + owner_repo[1] +
-            "/actions/workflows/" + claims["workflow"] + "/dispatches"
+        self.ledger.reserve(
+            dispatch_id, claims["tenant_id"], claims["repo"], claims["workflow"],
+            claims["ref"], claims["request_key"],
         )
+        with sqlite3.connect(self.ledger.path, timeout=10) as db:
+            db.execute(
+                """INSERT INTO workflow_dispatch_approvals
+                (dispatch_id,approval_id,approved_by,policy_version,
+                 approval_digest,verified_at) VALUES(?,?,?,?,?,?)""",
+                (dispatch_id, claims["approval_id"], claims["approved_by"],
+                 claims["policy_version"], hashlib.sha256(canonical(claims)).hexdigest(),
+                 utcnow()),
+            )
+
+    def _post_once(self, claims, github_token):
+        """Only one external side effect; never retry an ambiguous outcome."""
+        dispatch_id = claims["dispatch_id"]
+        owner, repo = claims["repo"].split("/")
+        url = ("https://api.github.com/repos/" + owner + "/" + repo +
+               "/actions/workflows/" + claims["workflow"] + "/dispatches")
         try:
             response = self.http.post(
                 url,
@@ -202,3 +184,25 @@ class AuthorizedWorkflowDispatcher:
                 "status": "unverified", "reason": "dispatch_outcome_unknown",
                 "receipt_id": dispatch_id,
             }
+
+    def dispatch(self, claims, signature, github_token):
+        if not self.enabled:
+            return {"status": "denied", "reason": "execution_disabled"}
+        try:
+            verify_approval(claims, signature, self.verification_secret)
+        except PermissionError:
+            return {"status": "denied", "reason": "approval_invalid"}
+        if not github_token:
+            return {"status": "denied", "reason": "provider_token_missing"}
+        try:
+            if not self._workflow_contract_is_live(claims, github_token):
+                return {"status": "denied", "reason": "approved_workflow_not_live"}
+        except (requests.RequestException, ValueError, TypeError, UnicodeError, OSError):
+            return {"status": "unverified", "reason": "workflow_contract_unavailable"}
+        try:
+            self._reserve_with_approval(claims)
+        except sqlite3.IntegrityError:
+            return {"status": "unverified", "reason": "duplicate_or_existing_dispatch"}
+        except (OSError, sqlite3.Error):
+            return {"status": "unverified", "reason": "durable_reservation_failed"}
+        return self._post_once(claims, github_token)
