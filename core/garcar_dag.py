@@ -22,40 +22,49 @@ logger = logging.getLogger(__name__)
 
 # ─── Node execution functions ──────────────────────────────────────────────
 
-async def run_defender_os(ctx: dict) -> dict:
-    """Trigger Defender OS health check via GitHub Actions API."""
+async def _reconcile_existing_workflow(ctx: dict, key: str, repo: str, workflow: str) -> dict:
+    """Verify existing authorized provider work; never create a duplicate run."""
+    from .github_workflow_verifier import GitHubWorkflowVerifier
+    from .workflow_receipts import WorkflowReceiptLedger
+
+    dispatch_id = ctx.get(key)
+    tenant_id = ctx.get("tenant_id")
+    db_path = os.getenv("RHNS_RECEIPTS_DB", "")
+    if not dispatch_id or not tenant_id or not db_path:
+        return {"status": "unverified", "reason": "receipt_context_or_persistent_store_missing"}
+
+    ledger = WorkflowReceiptLedger(db_path)
+    receipt = ledger.read(dispatch_id)
+    if not receipt or receipt["tenant_id"] != tenant_id:
+        return {"status": "unverified", "reason": "tenant_or_receipt_mismatch"}
+    if receipt["repo"] != repo or receipt["workflow"] != workflow:
+        return {"status": "unverified", "reason": "provider_scope_mismatch"}
+
     token = os.getenv("GH_PAT", "")
-    if not token:
-        return {"status": "skipped", "reason": "GH_PAT not set"}
-    try:
-        resp = await asyncio.to_thread(
-            requests.post,
-            "https://api.github.com/repos/Garrettc123/defender-os/actions/workflows/status-report.yml/dispatches",
-            headers={"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"},
-            json={"ref": "main"},
-            timeout=10,
-        )
-        return {"status": "triggered" if resp.status_code == 204 else "error", "http": resp.status_code}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
+    result = await asyncio.to_thread(GitHubWorkflowVerifier(ledger).reconcile, dispatch_id, token)
+    if result["status"] == "failed":
+        return {"status": "failed", "reason": "github_workflow_failed", "receipt_id": dispatch_id}
+    if result["status"] == "completed":
+        # A green workflow means only that GitHub marked the job successful.
+        # Defender performs syntax-only checks; revenue jobs do not prove sales.
+        return {"status": "unverified", "reason": "business_outcome_not_proven",
+                "receipt_id": dispatch_id, "workflow_status": "completed"}
+    return result
+
+
+async def run_defender_os(ctx: dict) -> dict:
+    """Read a correlated Defender receipt; never infer live security coverage."""
+    return await _reconcile_existing_workflow(
+        ctx, "defender_dispatch_id", "Garrettc123/defender-os", "status-report.yml",
+    )
 
 
 async def run_revenue_intelligence(ctx: dict) -> dict:
-    """Trigger RHNS Revenue Intelligence cycle."""
-    token = os.getenv("GH_PAT", "")
-    if not token:
-        return {"status": "skipped", "reason": "GH_PAT not set"}
-    try:
-        resp = await asyncio.to_thread(
-            requests.post,
-            "https://api.github.com/repos/Garrettc123/revenue-intelligence-engine/actions/workflows/revenue-intelligence.yml/dispatches",  # noqa: E501
-            headers={"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"},
-            json={"ref": "main"},
-            timeout=10,
-        )
-        return {"status": "triggered" if resp.status_code == 204 else "error", "http": resp.status_code}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
+    """Read a correlated receipt without duplicating the hourly revenue worker."""
+    return await _reconcile_existing_workflow(
+        ctx, "revenue_dispatch_id", "Garrettc123/revenue-intelligence-engine",
+        "revenue-intelligence.yml",
+    )
 
 
 async def run_harmony_score(ctx: dict) -> dict:
