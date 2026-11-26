@@ -185,7 +185,8 @@ class AuthorizedWorkflowDispatcher:
                 "receipt_id": dispatch_id,
             }
 
-    def dispatch(self, claims, signature, github_token):
+    def _preflight(self, claims, signature, github_token):
+        """Validate authorization and deployed workflow before reserving."""
         if not self.enabled:
             return {"status": "denied", "reason": "execution_disabled"}
         try:
@@ -199,6 +200,12 @@ class AuthorizedWorkflowDispatcher:
                 return {"status": "denied", "reason": "approved_workflow_not_live"}
         except (requests.RequestException, ValueError, TypeError, UnicodeError, OSError):
             return {"status": "unverified", "reason": "workflow_contract_unavailable"}
+        return None
+
+    def dispatch(self, claims, signature, github_token):
+        denial = self._preflight(claims, signature, github_token)
+        if denial is not None:
+            return denial
         try:
             self._reserve_with_approval(claims)
         except sqlite3.IntegrityError:
