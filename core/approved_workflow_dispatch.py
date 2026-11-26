@@ -1,0 +1,165 @@
+"""Explicit, signed, fail-closed workflow dispatch gate for RHNS.
+
+This module has NO background loop or automatic dispatch. The caller must hold
+a pre-existing, independently issued approval signed by the control plane.
+A reservation and an approval audit record are committed before any HTTP call.
+An ambiguous network outcome is never blindly retried.
+"""
+import hashlib
+import hmac
+import json
+import re
+import sqlite3
+from datetime import datetime, timedelta, timezone
+
+import requests
+
+from .workflow_receipts import WorkflowReceiptLedger, utcnow
+
+
+APPROVAL_FIELDS = frozenset({
+    "approval_id", "approved_by", "policy_version", "tenant_id",
+    "dispatch_id", "request_key", "repo", "workflow", "ref",
+    "issued_at", "expires_at", "intent_hash",
+})
+# The scheduled revenue worker is deliberately not dispatchable from this
+# gateway: it already runs hourly and must not be triggered in duplicate.
+ALLOWED_TARGETS = frozenset({
+    ("Garrettc123/defender-os", "status-report.yml", "main"),
+})
+CORRELATION_RE = re.compile(r"^[a-zA-Z0-9_-]{12,80}$")
+
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+
+
+def workflow_payload(claims):
+    return {
+        "ref": claims["ref"],
+        "inputs": {"rhns_dispatch_id": claims["dispatch_id"]},
+    }
+
+
+def verify_approval(claims, signature, secret, now=None):
+    """Verify exact action, trusted signature, authority, scope and expiry."""
+    if not isinstance(claims, dict) or set(claims) != APPROVAL_FIELDS:
+        raise PermissionError("Invalid approval fields")
+    if not isinstance(secret, bytes) or len(secret) < 32:
+        raise PermissionError("A strong control-plane verification secret is required")
+    if not isinstance(signature, str) or re.fullmatch(r"[a-f0-9]{64}", signature) is None:
+        raise PermissionError("Missing approval signature")
+    if not hmac.compare_digest(
+        hmac.new(secret, canonical(claims), hashlib.sha256).hexdigest(), signature
+    ):
+        raise PermissionError("Approval signature mismatch")
+    for field in ("approval_id", "approved_by", "policy_version", "tenant_id", "request_key"):
+        if not isinstance(claims[field], str) or not claims[field].strip():
+            raise PermissionError("Incomplete approval identity")
+    if not isinstance(claims["dispatch_id"], str) or not CORRELATION_RE.fullmatch(
+        claims["dispatch_id"]
+    ):
+        raise PermissionError("Invalid correlation identity")
+    scope = (claims["repo"], claims["workflow"], claims["ref"])
+    if scope not in ALLOWED_TARGETS:
+        raise PermissionError("Target outside approved safe workflow scope")
+    expected = hashlib.sha256(canonical(workflow_payload(claims))).hexdigest()
+    if not hmac.compare_digest(expected, claims["intent_hash"]):
+        raise PermissionError("Approval does not bind the exact dispatch payload")
+    try:
+        issued = datetime.fromisoformat(claims["issued_at"].replace("Z", "+00:00"))
+        expires = datetime.fromisoformat(claims["expires_at"].replace("Z", "+00:00"))
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise PermissionError("Invalid approval timestamp") from exc
+    if issued.tzinfo is None or expires.tzinfo is None:
+        raise PermissionError("Approval timestamps must be timezone-aware")
+    now = now or datetime.now(timezone.utc)
+    if issued > now + timedelta(seconds=60) or expires <= now:
+        raise PermissionError("Approval is not currently valid")
+    if expires <= issued or expires > issued + timedelta(minutes=15):
+        raise PermissionError("Approval exceeds maximum authority window")
+    return True
+
+
+class AuthorizedWorkflowDispatcher:
+    """Approval-bound GitHub dispatch; no automatic retries or autonomous writes."""
+
+    def __init__(self, ledger, verification_secret, enabled=False, http=None):
+        if not isinstance(ledger, WorkflowReceiptLedger):
+            raise TypeError("Durable WorkflowReceiptLedger required")
+        self.ledger = ledger
+        self.verification_secret = verification_secret
+        self.enabled = enabled
+        self.http = http if http is not None else requests.Session()
+        with sqlite3.connect(self.ledger.path, timeout=10) as db:
+            db.execute("""CREATE TABLE IF NOT EXISTS workflow_dispatch_approvals (
+                dispatch_id TEXT PRIMARY KEY,
+                approval_id TEXT NOT NULL UNIQUE,
+                approved_by TEXT NOT NULL,
+                policy_version TEXT NOT NULL,
+                approval_digest TEXT NOT NULL,
+                verified_at TEXT NOT NULL
+            )""")
+
+    def dispatch(self, claims, signature, github_token):
+        if not self.enabled:
+            return {"status": "denied", "reason": "execution_disabled"}
+        try:
+            verify_approval(claims, signature, self.verification_secret)
+        except PermissionError:
+            return {"status": "denied", "reason": "approval_invalid"}
+        if not github_token:
+            return {"status": "denied", "reason": "provider_token_missing"}
+        dispatch_id = claims["dispatch_id"]
+        try:
+            self.ledger.reserve(
+                dispatch_id, claims["tenant_id"], claims["repo"], claims["workflow"],
+                claims["ref"], claims["request_key"],
+            )
+            with sqlite3.connect(self.ledger.path, timeout=10) as db:
+                db.execute(
+                    """INSERT INTO workflow_dispatch_approvals
+                    (dispatch_id,approval_id,approved_by,policy_version,
+                     approval_digest,verified_at) VALUES(?,?,?,?,?,?)""",
+                    (dispatch_id, claims["approval_id"], claims["approved_by"],
+                     claims["policy_version"], hashlib.sha256(canonical(claims)).hexdigest(),
+                     utcnow()),
+                )
+        except sqlite3.IntegrityError:
+            # Atomic unique constraints mean repeated approval or request keys
+            # can never cause another external POST.
+            return {"status": "unverified", "reason": "duplicate_or_existing_dispatch"}
+        except (OSError, sqlite3.Error):
+            return {"status": "unverified", "reason": "durable_reservation_failed"}
+
+        owner_repo = claims["repo"].split("/")
+        url = (
+            "https://api.github.com/repos/" + owner_repo[0] + "/" + owner_repo[1] +
+            "/actions/workflows/" + claims["workflow"] + "/dispatches"
+        )
+        try:
+            response = self.http.post(
+                url,
+                headers={
+                    "Authorization": "Bearer " + github_token,
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+                json=workflow_payload(claims),
+                timeout=10,
+            )
+            if response.status_code != 204:
+                return {
+                    "status": "unverified", "reason": "dispatch_not_confirmed",
+                    "receipt_id": dispatch_id,
+                }
+            self.ledger.mark_accepted(dispatch_id)
+            return {
+                "status": "unverified", "reason": "dispatch_accepted_completion_pending",
+                "receipt_id": dispatch_id,
+            }
+        except (requests.RequestException, sqlite3.Error, OSError):
+            return {
+                "status": "unverified", "reason": "dispatch_outcome_unknown",
+                "receipt_id": dispatch_id,
+            }
