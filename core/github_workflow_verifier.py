@@ -47,7 +47,7 @@ class GitHubWorkflowVerifier:
         return body
 
     @staticmethod
-    def _matches(run, receipt):
+    def _matches(run, receipt):  # noqa: C901 - deliberate fail-closed identity guards
         """Require correlated run identity, not merely matching status or time."""
         if not isinstance(run, dict):
             return False
@@ -90,7 +90,7 @@ class GitHubWorkflowVerifier:
                 break
         return matches
 
-    def reconcile(self, dispatch_id, token):
+    def reconcile(self, dispatch_id, token):  # noqa: C901 - explicit fail-closed branches
         """Return terminal workflow evidence only after authenticated API reads.
 
         An unavailable API, missing run, ambiguous run or mismatched identity
