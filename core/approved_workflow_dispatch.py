@@ -5,6 +5,7 @@ a pre-existing, independently issued approval signed by the control plane.
 A reservation and an approval audit record are committed before any HTTP call.
 An ambiguous network outcome is never blindly retried.
 """
+import base64
 import hashlib
 import hmac
 import json
@@ -20,7 +21,7 @@ from .workflow_receipts import WorkflowReceiptLedger, utcnow
 APPROVAL_FIELDS = frozenset({
     "approval_id", "approved_by", "policy_version", "tenant_id",
     "dispatch_id", "request_key", "repo", "workflow", "ref",
-    "issued_at", "expires_at", "intent_hash",
+    "issued_at", "expires_at", "intent_hash", "workflow_blob_sha",
 })
 # The scheduled revenue worker is deliberately not dispatchable from this
 # gateway: it already runs hourly and must not be triggered in duplicate.
@@ -41,7 +42,7 @@ def workflow_payload(claims):
     }
 
 
-def verify_approval(claims, signature, secret, now=None):
+def verify_approval(claims, signature, secret, now=None):  # noqa: C901
     """Verify exact action, trusted signature, authority, scope and expiry."""
     if not isinstance(claims, dict) or set(claims) != APPROVAL_FIELDS:
         raise PermissionError("Invalid approval fields")
@@ -63,6 +64,12 @@ def verify_approval(claims, signature, secret, now=None):
     scope = (claims["repo"], claims["workflow"], claims["ref"])
     if scope not in ALLOWED_TARGETS:
         raise PermissionError("Target outside approved safe workflow scope")
+    if not isinstance(claims["intent_hash"], str):
+        raise PermissionError("Missing intent digest")
+    if not isinstance(claims["workflow_blob_sha"], str) or not re.fullmatch(
+        r"[a-f0-9]{40}", claims["workflow_blob_sha"]
+    ):
+        raise PermissionError("Approval must pin an exact workflow blob SHA")
     expected = hashlib.sha256(canonical(workflow_payload(claims))).hexdigest()
     if not hmac.compare_digest(expected, claims["intent_hash"]):
         raise PermissionError("Approval does not bind the exact dispatch payload")
@@ -101,6 +108,33 @@ class AuthorizedWorkflowDispatcher:
                 verified_at TEXT NOT NULL
             )""")
 
+    def _workflow_contract_is_live(self, claims, github_token):
+        # Verify the exact reviewed workflow is on the authorized branch
+        # before committing any reservation or sending any dispatch.
+        owner, name = claims["repo"].split("/")
+        url = ("https://api.github.com/repos/" + owner + "/" + name +
+               "/contents/.github/workflows/" + claims["workflow"])
+        response = self.http.get(
+            url,
+            headers={
+                "Authorization": "Bearer " + github_token,
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+            params={"ref": claims["ref"]},
+            timeout=10,
+        )
+        response.raise_for_status()
+        body = response.json()
+        if not isinstance(body, dict):
+            return False
+        if body.get("sha") != claims["workflow_blob_sha"]:
+            return False
+        source = base64.b64decode(body.get("content", "")).decode("utf-8")
+        return all(token in source for token in (
+            "run-name:", "RHNS/{0}", "rhns_dispatch_id:", "workflow_dispatch:",
+        ))
+
     def dispatch(self, claims, signature, github_token):
         if not self.enabled:
             return {"status": "denied", "reason": "execution_disabled"}
@@ -110,6 +144,11 @@ class AuthorizedWorkflowDispatcher:
             return {"status": "denied", "reason": "approval_invalid"}
         if not github_token:
             return {"status": "denied", "reason": "provider_token_missing"}
+        try:
+            if not self._workflow_contract_is_live(claims, github_token):
+                return {"status": "denied", "reason": "approved_workflow_not_live"}
+        except (requests.RequestException, ValueError, TypeError, UnicodeError, OSError):
+            return {"status": "unverified", "reason": "workflow_contract_unavailable"}
         dispatch_id = claims["dispatch_id"]
         try:
             self.ledger.reserve(
